@@ -135,7 +135,11 @@ There’s also a simple health check: if the background runspace dies, the main 
 
 ## Text-to-Speech
 
-The script includes scaffolding for Text-to-Speech (useful if you want audible “something started/stopped” cues while you’re in-game). It’s currently disabled by default; if you want it, you can enable it by removing the early return in the `Speak-ProcessEvent` function.
+The script includes Text-to-Speech (useful if you want audible “something started/stopped” cues while you’re in-game). It’s enabled by default. To disable TTS alerts, run:
+
+```powershell
+.\ProcessMon.ps1 -NoTts
+```
 
 ---
 
