@@ -48,6 +48,9 @@
 .PARAMETER Quiet
   Suppress console output (CSV export only).
 
+.PARAMETER NoTts
+  Disable Text-to-Speech alerts for process start/stop events.
+
 .NOTES
   - Requires Administrator privileges for full visibility into System/Service processes.
   - Designed for PowerShell 5.1 on Windows 10/11.
@@ -58,6 +61,7 @@ param(
   [int]$SampleIntervalMs = 1000,
   [string]$OutputCsv = "",
   [switch]$Quiet = $false,
+  [switch]$NoTts = $false,
   [string[]]$ExcludeNames = @( "sample1.exe", "msedge.exe", "conhost.exe","dllhost.exe","sihost.exe","RuntimeBroker.exe", "svchost.exe" )
 )
 
@@ -83,7 +87,7 @@ $global:TtsSynth.Rate   = 0
 
 function Speak-ProcessEvent {
   param([string]$Text)
-  return # Comment this line if you want audible “something started/stopped” cues while you’re in-game
+  if ($NoTts) { return }
   try {
     [System.Threading.Monitor]::Enter($global:TtsLock)
     try { [void]$global:TtsSynth.SpeakAsync($Text) } finally { [System.Threading.Monitor]::Exit($global:TtsLock) }
