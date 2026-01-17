@@ -234,13 +234,17 @@ function Stop-And-Report([int]$procIdVal) {
         if ($row.CommandLine.Length -gt 100) { $row.CommandLine.Substring(0,97)+"..." } else { $row.CommandLine }
     } else { $row.Name }
 
-    Write-Info ("`n[STOP] {0,-15} (ID:{1}) ran {2}s. StartLag: {3}s" -f $row.Name, $row.ProcId, $row.DurationSec, $row.StartLagSec)
+	$trackedCount = $global:SyncHash.ProcState.Count
+	$someActivity = [bool]($row.DurationSec -gt 1 -AND $row.CpuPeakPct -gt 1)
+	$mark = if ($someActivity) { "*" } else { "" }
+
+    Write-Info ("[STOP$mark] {0,-15} (ID:{1}) ran {2}s. StartLag: {3}s TrackingCount={4} " -f $row.Name, $row.ProcId, $row.DurationSec, $row.StartLagSec, $trackedCount)
     
-    if ($row.DurationSec -gt 1 -OR $row.CpuPeakPct -gt 1) {
-        $f = $row | Select-Object ProcId, Name, ParentProcId, ParentName, StartTime, StopTime, TimeGenerated, StartLagSec, DurationSec, Owner, OwnerSid, CommandLine, IsSystemAccount, IsServiceAccount, AccessRestricted, Visibility, MetricMode, TotalsMode, SampleCount, CpuPeakPct, WorkingSetPeakMB, PrivateBytesPeakMB, ReadBpsPeak, WriteBpsPeak, TotalReadMB, TotalWriteMB | Format-List | Out-String
+    if ($someActivity) {
+        $f = $row | Select-Object ProcId, Name, CpuPeakPct, DurationSec, StartLagSec, ParentProcId, ParentName, StartTime, StopTime, TimeGenerated, Owner, OwnerSid, CommandLine, IsSystemAccount, IsServiceAccount, AccessRestricted, Visibility, MetricMode, TotalsMode, SampleCount, WorkingSetPeakMB, PrivateBytesPeakMB, ReadBpsPeak, WriteBpsPeak, TotalReadMB, TotalWriteMB | Format-List | Out-String
         Write-Info $f.Trim()
         Write-Info ""
-    }
+    } 
 
     if ($row.DurationSec -gt 1) { 
         Speak-ProcessEvent "Stopped $($row.Name)" 
@@ -367,7 +371,6 @@ try {
                     if (-not $global:SyncHash.ProcState.ContainsKey($pidVal)) {
                         $st = New-ProcStateObject -procId $pidVal -name $name -parentPid $eArgs.ParentProcessID -timeGenerated $event.TimeGenerated
 						
-						# ... inside ProcStart ...
 						$global:SyncHash.ProcState[$pidVal] = $st
 
 						# --- RESTORED LOGGING LOGIC ---
@@ -381,11 +384,10 @@ try {
 
 						$trackedCount = $global:SyncHash.ProcState.Count
 
-						Write-Info ("[START] {0,6}  {1,-15} StartLag={6,5}s Tracked={7,-3} Parent={2,6}({3,-15}) Owner={4,-20} Cmd={5}" -f `
+						Write-Info ("[START] {0,6}  {1,-15} StartLag={6,5}s TrackingCount={7,-3} Parent={2,6}({3,-15}) Owner={4,-20} Cmd={5}" -f `
 							$pidVal, $name, $eArgs.ParentProcessID, $pnDisp, $ownerDisp, $argsOnly, $st.StartLagSec, $trackedCount)
 
 						Speak-ProcessEvent "Started $name"
-						# ...
                     }
                 }
             }
