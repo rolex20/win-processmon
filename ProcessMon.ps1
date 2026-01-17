@@ -85,12 +85,88 @@ $global:TtsSynth.SelectVoiceByHints([System.Speech.Synthesis.VoiceGender]::Femal
 $global:TtsSynth.Volume = 80
 $global:TtsSynth.Rate   = 0
 
-function Speak-ProcessEvent {
+<#
+.SYNOPSIS
+    Checks if the current PowerShell session is running with administrator privileges.
+
+.DESCRIPTION
+    This function determines whether the current user context has administrator privileges
+    by checking if the user is a member of the built-in Administrator role.
+
+.OUTPUTS
+    System.Boolean
+    Returns $true if running with administrator privileges, $false otherwise.
+
+.EXAMPLE
+    PS> Test-Administrator
+    False
+
+.EXAMPLE
+    PS> if (Test-Administrator) { Write-Host "Running as admin" }
+
+#>
+function Test-Administrator {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param()
+    
+    try {
+        $currentUser = New-Object Security.Principal.WindowsPrincipal $([Security.Principal.WindowsIdentity]::GetCurrent())
+        return $currentUser.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
+    }
+    catch {
+        Write-Warning "Failed to determine administrator status: $_"
+        return $false
+    }
+}
+
+
+<#
+.SYNOPSIS
+    Ensures the script is running with administrator privileges.
+
+.DESCRIPTION
+    This function checks if the current PowerShell session has administrator privileges.
+    If not, it creates a new elevated PowerShell process with the current script and exits
+    the current non-elevated process.
+
+.NOTES
+    See: #https://www.sharepointdiary.com/2015/01/run-powershell-script-as-administrator-automatically.html#:~:text=Enable%20%22Run%20as%20Administrator%22%20and%20click%20on%20%22OK%22,select%20the%20%22Run%20With%20Highest%20Privileges%22%20check%20box.
+
+#>
+Function RunAsAdministrator()
+{
+	#Check user is running the script is member of Administrator Group 
+	if (Test-Administrator) {
+		Write-Host "Script is running with Administrator privileges: [OK]" -ForegroundColor Green
+		return
+	}  
+  
+  
+	#Create a new Elevated process to Start PowerShell
+	$ElevatedProcess = New-Object System.Diagnostics.ProcessStartInfo "PowerShell";
+
+	# Specify the current script path and name as a parameter
+	$ElevatedProcess.Arguments = "& '" + $script:MyInvocation.MyCommand.Path + "'"
+
+	#Set the Process to elevated
+	$ElevatedProcess.Verb = "runas"
+
+	#Start the new elevated process
+	[System.Diagnostics.Process]::Start($ElevatedProcess)
+
+	#Exit from the current, unelevated, process
+	Exit
+    
+}
+RunAsAdministrator
+
+function Speak-ProcessName {
   param([string]$Text)
   if ($NoTts) { return }
   try {
     [System.Threading.Monitor]::Enter($global:TtsLock)
-    try { [void]$global:TtsSynth.SpeakAsync($Text) } finally { [System.Threading.Monitor]::Exit($global:TtsLock) }
+    try { [void]$global:TtsSynth.SpeakAsync(($Text -replace '(?i)\.exe', '')) } finally { [System.Threading.Monitor]::Exit($global:TtsLock) }
   } catch {}
 }
 
@@ -182,6 +258,12 @@ function Get-ScriptArguments {
     return $FullString.Substring($idx + $FileName.Length).Trim()
 }
 
+function Safe-Name([string]$s) {
+  
+  return ($s -replace '[\\/:*?"<>|]', '_')
+  
+}
+
 function Stop-And-Report([int]$procIdVal) {
     $st = $global:SyncHash.ProcState[$procIdVal]
     if (-not $st) { return }
@@ -228,6 +310,15 @@ function Stop-And-Report([int]$procIdVal) {
     }
 
     $global:SyncHash.Reports.Add($row) | Out-Null
+	
+  # Per-process JSON  
+  $safe = Safe-Name $st.Name  
+  $stamp = $st.StartTime.ToString("yyyyMMdd-HHmmss")  
+  $jsonBase = Join-Path -Path (Split-Path $OutputCsv -Parent) -ChildPath "$safe-PID$($st.ProcId)-$stamp"  
+  $jsonFile = "$jsonBase.json"  
+  ($row | ConvertTo-Json -Depth 6) | Set-Content -LiteralPath $jsonFile -Encoding UTF8
+  # Add JsonFile to report for printing  
+  Add-Member -InputObject $row -MemberType NoteProperty -Name JsonFile -Value $jsonFile	
     
     # Console Output
     $cmdDisplay = if ($row.CommandLine) { 
@@ -247,7 +338,7 @@ function Stop-And-Report([int]$procIdVal) {
     } 
 
     if ($row.DurationSec -gt 1) { 
-        Speak-ProcessEvent "Stopped $($row.Name)" 
+        Speak-ProcessName "Stopped $($row.Name)" 
     }
 }
 
@@ -387,7 +478,7 @@ try {
 						Write-Info ("[START] {0,6}  {1,-15} StartLag={6,5}s TrackingCount={7,-3} Parent={2,6}({3,-15}) Owner={4,-20} Cmd={5}" -f `
 							$pidVal, $name, $eArgs.ParentProcessID, $pnDisp, $ownerDisp, $argsOnly, $st.StartLagSec, $trackedCount)
 
-						Speak-ProcessEvent "Started $name"
+						Speak-ProcessName "Started $name"
                     }
                 }
             }
