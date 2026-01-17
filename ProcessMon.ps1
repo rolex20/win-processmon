@@ -273,6 +273,7 @@ function Stop-And-Report([int]$procIdVal) {
     $dur = ($st.StopTime - $st.StartTime).TotalSeconds
     $samples = [math]::Max(1, $st.SampleCount)
     $toMB = { param($v) [math]::Round($v/1MB, 2) }
+    $toMbps = { param($v) [math]::Round(($v * 8) / 1e6, 2) }
 
     $isSystem = ($st.OwnerSid -eq "S-1-5-18")
     $isService = ($isSystem -or $st.OwnerSid -eq "S-1-5-19" -or $st.OwnerSid -eq "S-1-5-20")
@@ -299,8 +300,8 @@ function Stop-And-Report([int]$procIdVal) {
         CpuPeakPct         = [math]::Round($st.CpuPeak, 2)
         WorkingSetPeakMB   = (& $toMB $st.WsPeak)
         PrivateBytesPeakMB = (& $toMB $st.PvPeak)
-        ReadBpsPeak        = [math]::Round($st.ReadBpsPeak, 0)
-        WriteBpsPeak       = [math]::Round($st.WriteBpsPeak, 0)
+        ReadMbpsPeak       = (& $toMbps $st.ReadBpsPeak)
+        WriteMbpsPeak      = (& $toMbps $st.WriteBpsPeak)
         TotalReadMB        = (& $toMB $st.TotalReadEst)
         TotalWriteMB       = (& $toMB $st.TotalWriteEst)
         
@@ -332,7 +333,7 @@ function Stop-And-Report([int]$procIdVal) {
     Write-Info ("[STOP$mark] {0,-15} (ID:{1}) ran {2}s. StartLag: {3}s TrackingCount={4} " -f $row.Name, $row.ProcId, $row.DurationSec, $row.StartLagSec, $trackedCount)
     
     if ($someActivity) {
-        $f = $row | Select-Object ProcId, Name, CpuPeakPct, DurationSec, StartLagSec, ParentProcId, ParentName, StartTime, StopTime, TimeGenerated, Owner, OwnerSid, CommandLine, IsSystemAccount, IsServiceAccount, AccessRestricted, Visibility, MetricMode, TotalsMode, SampleCount, WorkingSetPeakMB, PrivateBytesPeakMB, ReadBpsPeak, WriteBpsPeak, TotalReadMB, TotalWriteMB | Format-List | Out-String
+        $f = $row | Select-Object ProcId, Name, CpuPeakPct, DurationSec, StartLagSec, ParentProcId, ParentName, StartTime, StopTime, TimeGenerated, Owner, OwnerSid, CommandLine, IsSystemAccount, IsServiceAccount, AccessRestricted, Visibility, MetricMode, TotalsMode, SampleCount, WorkingSetPeakMB, PrivateBytesPeakMB, ReadMbpsPeak, WriteMbpsPeak, TotalReadMB, TotalWriteMB | Format-List | Out-String
         Write-Info $f.Trim()
         Write-Info ""
     } 
