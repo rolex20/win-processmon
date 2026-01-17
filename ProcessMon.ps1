@@ -272,7 +272,7 @@ function Stop-And-Report([int]$procIdVal) {
     $st.StopTime = Get-Date
     $dur = ($st.StopTime - $st.StartTime).TotalSeconds
     $samples = [math]::Max(1, $st.SampleCount)
-    $toMB = { param($v) [math]::Round($v/1MB, 2) }
+    $toMB = { param($v) [math]::Round($v/1e6, 2) }
     $toMbps = { param($v) [math]::Round(($v * 8) / 1e6, 2) }
 
     $isSystem = ($st.OwnerSid -eq "S-1-5-18")
