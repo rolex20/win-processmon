@@ -13,7 +13,7 @@ When a game stutters, the obvious suspects (GPU driver, shaders, “bad optimiza
 - Capture per-process peaks for:
   - CPU (%)
   - Working Set / Private Bytes
-  - Disk I/O read/write rate (bytes/sec) + estimated totals
+  - Disk I/O read/write rate (Mbps) + estimated totals
 - Enrich events with useful context:
   - Owner (user/SID), command line, parent process name, session id
 - Export a **CSV report** you can sort/filter after a gaming session
@@ -97,12 +97,12 @@ Common columns you’ll care about:
 * `Owner`, `OwnerSid`, `IsSystemAccount`, `IsServiceAccount`
 * `CommandLine` (trimmed in console output; full in CSV)
 * `CpuPeakPct`
-* `WorkingSetPeakMB`, `PrivateBytesPeakMB`
-* `ReadBpsPeak`, `WriteBpsPeak`
+* `WorkingSetPeakMB`, `PrivateBytesPeakMB` (decimal MB, not MiB)
+* `ReadMbpsPeak`, `WriteMbpsPeak`
 * `TotalReadMB`, `TotalWriteMB`
 * `Visibility` / `AccessRestricted` (helps explain why some metadata is missing)
 
-Tip: Sort by `CpuPeakPct`, `ReadBpsPeak`, `WriteBpsPeak`, or `DurationSec` to surface the usual troublemakers fast.
+Tip: Sort by `CpuPeakPct`, `ReadMbpsPeak`, `WriteMbpsPeak`, or `DurationSec` to surface the usual troublemakers fast.
 
 ---
 
