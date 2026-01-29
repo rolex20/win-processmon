@@ -283,9 +283,11 @@
         .result-label { color: #888; font-size: 0.9rem; }
         .result-value { color: var(--accent); font-weight: bold; font-family: monospace; font-size: 1.1rem; text-align: right;}
         .result-value.warning { color: #ff5555; font-size: 0.9rem; }
+        .result-value .mini-tag { margin-left: 6px; vertical-align: middle; }
         
         .tag-list { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
         .mini-tag { background: #333; font-size: 0.8rem; padding: 2px 6px; border-radius: 3px; color: white; }
+        .mini-tag.unknown { background: #2a2a2a; border: 1px solid #555; color: #ddd; }
 
         .no-cars-msg { text-align: center; color: #666; margin-top: 50px; font-style: italic; }
 
@@ -372,6 +374,30 @@
         renderGrid();
     }
 
+    function toNumber(value) {
+        if (value === null || value === undefined) return null;
+        const text = String(value).trim();
+        if (!text) return null;
+        const num = Number(text);
+        return Number.isFinite(num) ? num : null;
+    }
+
+    function formatWeight(value) {
+        return isImperial ? `${value} lbs` : `${Math.round(value * 0.453592)} kg`;
+    }
+
+    function formatPower(value) {
+        return isImperial ? `${value} hp` : `${Math.round(value * 0.7457)} kw`;
+    }
+
+    function formatPiBadge(piValue, piClass) {
+        const classLabel = piClass && String(piClass).trim() ? String(piClass).trim() : null;
+        if (classLabel) {
+            return `${classLabel} ${piValue ?? "Unknown"}`;
+        }
+        return piValue ?? "Unknown";
+    }
+
     // --- RENDER LOGIC ---
     function renderGrid() {
         carContainer.innerHTML = "";
@@ -385,17 +411,21 @@
             if (showFavOnly && car[COL.IS_FAV] !== "yes") return;
 
             // Values
-            let wt = car[COL.WEIGHT];
-            let hp = car[COL.HP];
+            const wtValue = toNumber(car[COL.WEIGHT]);
+            const hpValue = toNumber(car[COL.HP]);
+            const piValue = toNumber(car[COL.PI]);
+            const piClass = car[COL.CLASS];
             
             // Format Display Values based on unit preference
-            const wtDisplay = isImperial ? `${wt} lbs` : `${Math.round(wt * 0.453592)} kg`;
-            const hpDisplay = isImperial ? `${hp} hp` : `${Math.round(hp * 0.7457)} kw`;
+            const wtDisplay = wtValue === null ? "Unknown" : formatWeight(wtValue);
+            const hpDisplay = hpValue === null ? "Unknown" : formatPower(hpValue);
+            const piDisplay = formatPiBadge(piValue, piClass);
 
             // Build Card
             const isSelected = selectedIndices.has(index);
             const card = document.createElement('div');
-            card.className = `car-card ${isSelected ? 'selected' : ''} pi-${car[COL.CLASS]}`;
+            const piClassName = piClass && String(piClass).trim() ? `pi-${String(piClass).trim()}` : '';
+            card.className = `car-card ${isSelected ? 'selected' : ''} ${piClassName}`;
             card.onclick = () => toggleSelection(index);
 
             card.innerHTML = `
@@ -404,7 +434,7 @@
                     <span class="car-title">${car[COL.MAKE]} ${car[COL.MODEL]}</span>
                 </div>
                 <div class="car-stats">
-                    <span class="pi-badge">${car[COL.CLASS]} ${car[COL.PI]}</span>
+                    <span class="pi-badge">${piDisplay}</span>
                     <span class="stat-tag">${hpDisplay}</span>
                     <span class="stat-tag">${wtDisplay}</span>
                     <span class="stat-tag">${car[COL.DRIVE]}</span>
@@ -486,14 +516,40 @@
         return code;
     }
 
+    function initStatTracker() {
+        return { min: Infinity, max: -Infinity, unknown: 0 };
+    }
+
+    function updateStatTracker(tracker, value) {
+        if (value === null) {
+            tracker.unknown += 1;
+            return;
+        }
+        if (value < tracker.min) tracker.min = value;
+        if (value > tracker.max) tracker.max = value;
+    }
+
+    function formatRange(tracker, formatter) {
+        if (!Number.isFinite(tracker.min) || !Number.isFinite(tracker.max)) {
+            return "Unknown";
+        }
+        const formatted = tracker.min === tracker.max
+            ? formatter(tracker.max)
+            : `${formatter(tracker.min)} - ${formatter(tracker.max)}`;
+        if (tracker.unknown > 0) {
+            return `${formatted} <span class="mini-tag unknown">Unknown: ${tracker.unknown}</span>`;
+        }
+        return formatted;
+    }
+
     function analyzeGrid() {
         if (selectedIndices.size === 0) return;
 
         // Init Stats
-        let minYear = Infinity, maxYear = -Infinity;
-        let minPI = Infinity, maxPI = -Infinity;
-        let minHP = Infinity, maxHP = -Infinity;
-        let minWt = Infinity, maxWt = -Infinity;
+        const yearStats = initStatTracker();
+        const piStats = initStatTracker();
+        const hpStats = initStatTracker();
+        const wtStats = initStatTracker();
         
         let divisions = new Set();
         let drives = new Set();
@@ -504,22 +560,15 @@
             const car = carData[idx];
             
             // Numeric Stats
-            const year = parseInt(car[COL.YEAR]);
-            const pi = parseInt(car[COL.PI]);
-            const hp = parseInt(car[COL.HP]);
-            const wt = parseInt(car[COL.WEIGHT]);
+            const year = toNumber(car[COL.YEAR]);
+            const pi = toNumber(car[COL.PI]);
+            const hp = toNumber(car[COL.HP]);
+            const wt = toNumber(car[COL.WEIGHT]);
 
-            if (year < minYear) minYear = year;
-            if (year > maxYear) maxYear = year;
-            
-            if (pi < minPI) minPI = pi;
-            if (pi > maxPI) maxPI = pi;
-
-            if (hp < minHP) minHP = hp;
-            if (hp > maxHP) maxHP = hp;
-
-            if (wt < minWt) minWt = wt;
-            if (wt > maxWt) maxWt = wt;
+            updateStatTracker(yearStats, year);
+            updateStatTracker(piStats, pi);
+            updateStatTracker(hpStats, hp);
+            updateStatTracker(wtStats, wt);
 
             // Categorical Stats
             divisions.add(car[COL.DIVISION]);
@@ -528,29 +577,23 @@
             cylinders.add(car[COL.CYLINDERS]);
         });
 
-        // Unit Conversions for Modal
-        let displayMinWt = isImperial ? `${minWt} lbs` : `${Math.round(minWt * 0.453592)} kg`;
-        let displayMaxWt = isImperial ? `${maxWt} lbs` : `${Math.round(maxWt * 0.453592)} kg`;
-        let displayMinHP = isImperial ? `${minHP} hp` : `${Math.round(minHP * 0.7457)} kw`;
-        let displayMaxHP = isImperial ? `${maxHP} hp` : `${Math.round(maxHP * 0.7457)} kw`;
-
         // Generate HTML
         let html = ``;
 
         // Year
-        const yearStr = minYear === maxYear ? minYear : `${minYear} - ${maxYear}`;
+        const yearStr = formatRange(yearStats, (value) => value);
         html += createRow("Year Range", yearStr);
 
         // PI
-        const piStr = minPI === maxPI ? maxPI : `${minPI} - ${maxPI}`;
+        const piStr = formatRange(piStats, (value) => value);
         html += createRow("PI Range", piStr);
 
         // Power
-        const hpStr = minHP === maxHP ? displayMaxHP : `${displayMinHP} - ${displayMaxHP}`;
+        const hpStr = formatRange(hpStats, formatPower);
         html += createRow("Power", hpStr);
 
         // Weight
-        const wtStr = minWt === maxWt ? displayMaxWt : `${displayMinWt} - ${displayMaxWt}`;
+        const wtStr = formatRange(wtStats, formatWeight);
         html += createRow("Weight", wtStr);
 
         // Division
