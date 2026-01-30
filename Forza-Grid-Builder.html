@@ -98,6 +98,21 @@
             border-color: var(--accent);
         }
 
+        .dataset-select {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: white;
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            min-width: 140px;
+            outline: none;
+        }
+
+        .dataset-select:focus {
+            border-color: var(--accent);
+        }
+
         /* --- Car Grid --- */
         .car-grid {
             display: grid;
@@ -425,6 +440,10 @@
 </header>
 
 <div class="controls">
+    <select id="datasetSelect" class="dataset-select" onchange="handleDatasetChange(this.value)">
+        <option value="fm2023">FM-2023</option>
+        <option value="fm7">FM7</option>
+    </select>
     <input type="text" id="searchInput" placeholder="Search Make, Model, Div..." onkeyup="filterCars()">
     <button class="btn-icon" id="favBtn" onclick="toggleFavFilter()" title="Favorites Only">★</button>
     <button class="btn-icon" onclick="resetGrid()" title="Clear Selection">↺</button>
@@ -464,27 +483,99 @@
 
 <script>
     // --- DATA START ---
-    // DATOS HARD-CODED GENERADOS POR POWERSHELL
-    const columns = ["Is Favorite","Year Makes: 92 Models: 618","Nickname","Ordinal","Year","Makes: 92","Models: 618","Access Type","DLC Pack","Special Reward/Gift","Direct Access","Rarity","FE Boost","Featured Sale Deadline","Car Value","Car Division","Spec","PI","Class","S","B","H","A","L","O","HP","T","Wt","Wt / HP","%","Displ cc","Aspiration","Engine","Cylinders","Eng","Drive","F Tire/RRim","R Tire/RRim","Track Width","Aero or kit Options","Engine Conversions (hp)","Aspiration Options","Naturally Aspirated","Region","Country","Model Family","Open Top","Doors","Steering","Wheels","No lights","Car Themes","0-60 Sec","0-100 Sec","1/4 Mile","Top Speed","60-0 Feet","100-0 Ft","60 mph g\u0027s","100mph g\u0027s","60-100 sec","MM VIN","FM Debut","FH5 Debut","Forza Debut","Latest game","New to Forza","FM","FH5","FH4","FM7","FH3","FM6","FH2","FM5","FH1","FM4","FM3","FM2","FM1","# Titles","Xbox gen"];
-    const carData = [["yes","2017 Abarth 124 Spider","Abarth 124 \u002717",2740,2017,"Abarth","124 Spider","Buy Cars Base","FM Update 4","","","Common","","24-Jan-2024",43000,"Modern Sport Compact","Factory",360,"D",2.1,2.3,2.4,2.2,2.6,5.1,186,184,2477,13.32,54,1368,"T","Inline",4,"F","RWD","205/R17","205/R17","Both","Forza","194, 212, 232, 250, 276, 350, 415, 630, 690","none","eng","Europe","Italy","","Yes",2,"L",4,"","SS",6.5,17.6,14.917,144.4,111.2,284.3,1.1,1.07,11.1,12843,"25-Jan-24","07-Sep-23","07-Nov-17","FM","FM7","S","cu","FH4","DLC","","","","","","","","","",4,"XBO"],["yes","2020 Acura #6 ARX-05 DPi","Acura #6 ARX-05",3420,2020,"Acura","#6 ARX-05 DPi","Reward","FM Update 1","BC Track Tour. gift Feb2024","","","","",358000,"Forza Proto-H","Race",943,"P",6,9.5,9.6,7.7,"","",600,500,2174,3.62,45,3500,"TT","V",6,"M","RWD","310/R18","310/R18","","Adjustable","none","none","","N. America","U.S.","Acura ARX","",2,"L",4,"","",2.47,4.663,10.067,201,76.9,186.8,1.61,2.21,2.193,13429,"25-Oct-23","","25-Oct-23","FM","FM","R","","","","","","","","","","","","",1,"XBO"],["yes","2017 Acura NSX","Acura NSX \u002717",2352,2017,"Acura","NSX","Buy Cars Base","","","","Rare","","",243000,"Modern Sport GT","Factory",731,"S",5.2,3.8,3.3,6.1,"","",573,623,3803,6.64,42,3493,"TT","V",6,"M","AWD","245/R19","305/R20","Both","WB, Forza","375, 562, 603, 630, 788","none","no","N. America","U.S.","Acura NSX","",2,"L",4,"","",2.7,6.4,10.55,190.7,101.1,252,1.17,1.2,3.7,12631,"05-Oct-23","05-Nov-21","01-Nov-16","FM","FH3","FM","FH5","FH4","FM7","DLC","","","","","","","","",5,"XBO"],["","2018 Acura #36 NSX GT3","Acura #36 NSX",3240,2018,"Acura","#36 NSX GT3","Buy Cars DLC","202310 Race Day Car Pack","Gift w/DLC","","","","",307000,"Forza GT","Race",819,"R",4.7,6.7,6.9,6.3,"","",522,405,2910,5.57,45,3500,"TT","V",6,"M","RWD","300/R18","325/R18","","Adjustable","none","none","","N. America","U.S.","Acura NSX","",2,"L",4,"","",3.3,6.783,11,181.8,82.5,206.6,1.47,1.7,3.483,13393,"05-Oct-23","","05-Oct-23","FM","FM","DLC","","","","","","","","","","","","",1,"XBO"],["","2001 Acura Integra Type R","Acura ITR \u002701",368,2001,"Acura","Integra Type R","Buy Cars Base","","","","Common","","",53000,"Early Sport Compact","Factory",338,"D",3.3,1.5,1.9,2,"","",195,130,2639,13.53,62,1797,"NA","Inline",4,"F","FWD","195/R15","195/R15","Both","Forza","212, 350, 375, 394I, 475, 630","T, PDS, CS","stock","N. America","U.S.","Acura Integra","",2,"L",4,"","RPC, DD",6.6,17.9,15.2,160.3,113,299.1,1.05,1,11.3,11003,"05-Oct-23","05-Nov-21","03-May-05","FM","FM1","FM","FH5","FH4","FM7","FH3","FM6","DLC","FM5","","FM4","FM3","FM2","FM1",12,"XBO"],["","2017 Alfa Romeo Giulia Quadrifoglio","Alfa Giulia \u002717",2542,2017,"Alfa Romeo","Giulia Quadrifoglio","Buy Cars Base","FM Update 4","","","Rare","","24-Jan-2024",120000,"Modern Sport Touring","Factory",632,"A",5.8,3.5,3.1,4.5,4.9,5,506,442,3822,7.55,50,2891,"TT","V",6,"F","RWD","245/R19","285/R19","Both","Forza","375, 394I, 562, 603, 630, 788","none","eng","Europe","Italy","Alfa Romeo Giulia","",4,"L",4,"","",3.6,8.1,11.883,197.5,105.5,261.2,1.15,1.16,4.5,12844,"01-Feb-24","15-Aug-23","07-Nov-17","FM","FM7","S","cu","FH4","DLC","","","","","","","","","",4,"XBO"],["","2014 Alfa Romeo 4C","Alfa Romeo 4C",2038,2014,"Alfa Romeo","4C","Buy Cars Base","FM Update 6","","","Rare","","20-Mar-2024",89000,"Modern Sport Coupe","Factory",522,"B",3.1,2.9,3.1,3.5,7,5,240,238,2077,8.65,41,1742,"T","Inline",4,"M","RWD","205/R18","235/R19","Both","Street, Safety Light","350, 394I, 475, 630, 690","none","eng","Europe","Italy","","",2,"L",4,"","",4.4,11.45,13.1,158.5,108.5,270.1,1.17,1.16,7.05,12186,"13-Mar-24","24-Aug-23","04-Nov-14","FM","FH2","S","cu","FH4","FM7","FH3","FM6","DLC","","","","","","",7,"XBO"],["","2011 Alfa Romeo Giulietta Quadrifoglio Verde","AR Giulietta 11",1325,2011,"Alfa Romeo","Giulietta Quadrifoglio Verde","Buy Cars Base","","","","","","",59000,"Modern Hot Hatch","Factory",387,"D",2.8,1.8,2.1,2.4,"","",231,251,2910,12.6,63,1742,"T","Inline",4,"F","FWD","225/R18","225/R18","","Forza","350, 375, 394I, 475, 630","none","eng","Europe","Italy","Alfa Romeo Giulietta","",5,"L",4,"","",6.6,17.5,14.267,154.4,111.1,288.5,1.08,1.02,10.9,11701,"05-Oct-23","","13-Oct-11","FM","FM4","FM","","","FM7","","FM6","FH2","DLC","","DLC","","","",6,"XBO"],["","1965 Alfa Romeo Giulia Sprint GTA Stradale","AR GTA \u002765",1150,1965,"Alfa Romeo","Giulia Sprint GTA Stradale","Reward","FM Update 4","BC Open Tour","","Rare","","",300000,"Vintage Sport Compact","Factory",263,"E",1,1,1,1.8,3.2,5.3,115,105,1751,15.23,54,1570,"NA","Inline",4,"F","RWD","165/R14","165/R14","Both","Street","212, 245, 350, 562, 630","T, CS","stock","Europe","Italy","Alfa Romeo Giulia","",2,"L",4,"","",7.9,23.981,15.633,123.3,130.2,336.7,0.95,0.87,16.081,11460,"18-Jan-24","15-Aug-23","27-Oct-09","FM","FM3","R","cu","FH4","FM7","FH3","FM6","","FM5","","FM4","DLC","","",9,"XBO"],["yes","2017 Alpine A110","Alpine A110 \u002717",2973,2017,"Alpine","A110","Buy Cars Base","","","","Epic","","",100000,"Modern Sport Coupe","Factory",570,"B",3.7,2.9,3.1,4.2,"","",248,236,2432,9.81,44,1798,"T","Inline",4,"M","RWD","205/R18","205/R18","Both","Forza","350, 375, 475, 630","none","no","Europe","France","","",2,"L",4,"","",4.62,10.32,13.02,168,112.3,283.1,1.15,1.16,5.7,13122,"05-Oct-23","05-Nov-21","12-Dec-19","FM","FH4","FM","FH5","cu","","","","","","","","","","",3,"XBO"],["","1990 Alpine GTA Le Mans","Alpine GTA \u002790",2426,1990,"Alpine","GTA Le Mans","Buy Cars Base","","","","","","",74000,"Sport Touring Classics","Factory",374,"D",2.7,2,2.3,2.4,"","",197,214,2624,13.32,39,2458,"T","V",6,"R","RWD","205/R16","255/R17","","Forza","375, 394F, 475, 630, 788","none","eng","Europe","France","","",2,"L",4,"","",6.9,18,14.583,153.1,114.4,301.9,1.1,1.04,11.1,12664,"05-Oct-23","","07-Feb-17","FM","FH3","FM","","","FM7","DLC","","","","","","","","",3,"XBO"]];
+    const DATASETS = [
+        (() => {
+            // =========================
+            // DATASET: FM-2023 (DEFAULT)
+            // =========================
+            // DATOS HARD-CODED GENERADOS POR POWERSHELL
+            const columns = ["Is Favorite","Year Makes: 92 Models: 618","Nickname","Ordinal","Year","Makes: 92","Models: 618","Access Type","DLC Pack","Special Reward/Gift","Direct Access","Rarity","FE Boost","Featured Sale Deadline","Car Value","Car Division","Spec","PI","Class","S","B","H","A","L","O","HP","T","Wt","Wt / HP","%","Displ cc","Aspiration","Engine","Cylinders","Eng","Drive","F Tire/RRim","R Tire/RRim","Track Width","Aero or kit Options","Engine Conversions (hp)","Aspiration Options","Naturally Aspirated","Region","Country","Model Family","Open Top","Doors","Steering","Wheels","No lights","Car Themes","0-60 Sec","0-100 Sec","1/4 Mile","Top Speed","60-0 Feet","100-0 Ft","60 mph g\u0027s","100mph g\u0027s","60-100 sec","MM VIN","FM Debut","FH5 Debut","Forza Debut","Latest game","New to Forza","FM","FH5","FH4","FM7","FH3","FM6","FH2","FM5","FH1","FM4","FM3","FM2","FM1","# Titles","Xbox gen"];
+            const carData = [["yes","2017 Abarth 124 Spider","Abarth 124 \u002717",2740,2017,"Abarth","124 Spider","Buy Cars Base","FM Update 4","","","Common","","24-Jan-2024",43000,"Modern Sport Compact","Factory",360,"D",2.1,2.3,2.4,2.2,2.6,5.1,186,184,2477,13.32,54,1368,"T","Inline",4,"F","RWD","205/R17","205/R17","Both","Forza","194, 212, 232, 250, 276, 350, 415, 630, 690","none","eng","Europe","Italy","","Yes",2,"L",4,"","SS",6.5,17.6,14.917,144.4,111.2,284.3,1.1,1.07,11.1,12843,"25-Jan-24","07-Sep-23","07-Nov-17","FM","FM7","S","cu","FH4","DLC","","","","","","","","","",4,"XBO"],["yes","2020 Acura #6 ARX-05 DPi","Acura #6 ARX-05",3420,2020,"Acura","#6 ARX-05 DPi","Reward","FM Update 1","BC Track Tour. gift Feb2024","","","","",358000,"Forza Proto-H","Race",943,"P",6,9.5,9.6,7.7,"","",600,500,2174,3.62,45,3500,"TT","V",6,"M","RWD","310/R18","310/R18","","Adjustable","none","none","","N. America","U.S.","Acura ARX","",2,"L",4,"","",2.47,4.663,10.067,201,76.9,186.8,1.61,2.21,2.193,13429,"25-Oct-23","","25-Oct-23","FM","FM","R","","","","","","","","","","","","",1,"XBO"],["yes","2017 Acura NSX","Acura NSX \u002717",2352,2017,"Acura","NSX","Buy Cars Base","","","","Rare","","",243000,"Modern Sport GT","Factory",731,"S",5.2,3.8,3.3,6.1,"","",573,623,3803,6.64,42,3493,"TT","V",6,"M","AWD","245/R19","305/R20","Both","WB, Forza","375, 562, 603, 630, 788","none","no","N. America","U.S.","Acura NSX","",2,"L",4,"","",2.7,6.4,10.55,190.7,101.1,252,1.17,1.2,3.7,12631,"05-Oct-23","05-Nov-21","01-Nov-16","FM","FH3","FM","FH5","FH4","FM7","DLC","","","","","","","","",5,"XBO"],["","2018 Acura #36 NSX GT3","Acura #36 NSX",3240,2018,"Acura","#36 NSX GT3","Buy Cars DLC","202310 Race Day Car Pack","Gift w/DLC","","","","",307000,"Forza GT","Race",819,"R",4.7,6.7,6.9,6.3,"","",522,405,2910,5.57,45,3500,"TT","V",6,"M","RWD","300/R18","325/R18","","Adjustable","none","none","","N. America","U.S.","Acura NSX","",2,"L",4,"","",3.3,6.783,11,181.8,82.5,206.6,1.47,1.7,3.483,13393,"05-Oct-23","","05-Oct-23","FM","FM","DLC","","","","","","","","","","","","",1,"XBO"],["","2001 Acura Integra Type R","Acura ITR \u002701",368,2001,"Acura","Integra Type R","Buy Cars Base","","","","Common","","",53000,"Early Sport Compact","Factory",338,"D",3.3,1.5,1.9,2,"","",195,130,2639,13.53,62,1797,"NA","Inline",4,"F","FWD","195/R15","195/R15","Both","Forza","212, 350, 375, 394I, 475, 630","T, PDS, CS","stock","N. America","U.S.","Acura Integra","",2,"L",4,"","RPC, DD",6.6,17.9,15.2,160.3,113,299.1,1.05,1,11.3,11003,"05-Oct-23","05-Nov-21","03-May-05","FM","FM1","FM","FH5","FH4","FM7","FH3","FM6","DLC","FM5","","FM4","FM3","FM2","FM1",12,"XBO"],["","2017 Alfa Romeo Giulia Quadrifoglio","Alfa Giulia \u002717",2542,2017,"Alfa Romeo","Giulia Quadrifoglio","Buy Cars Base","FM Update 4","","","Rare","","24-Jan-2024",120000,"Modern Sport Touring","Factory",632,"A",5.8,3.5,3.1,4.5,4.9,5,506,442,3822,7.55,50,2891,"TT","V",6,"F","RWD","245/R19","285/R19","Both","Forza","375, 394I, 562, 603, 630, 788","none","eng","Europe","Italy","Alfa Romeo Giulia","",4,"L",4,"","",3.6,8.1,11.883,197.5,105.5,261.2,1.15,1.16,4.5,12844,"01-Feb-24","15-Aug-23","07-Nov-17","FM","FM7","S","cu","FH4","DLC","","","","","","","","","",4,"XBO"],["","2014 Alfa Romeo 4C","Alfa Romeo 4C",2038,2014,"Alfa Romeo","4C","Buy Cars Base","FM Update 6","","","Rare","","20-Mar-2024",89000,"Modern Sport Coupe","Factory",522,"B",3.1,2.9,3.1,3.5,7,5,240,238,2077,8.65,41,1742,"T","Inline",4,"M","RWD","205/R18","235/R19","Both","Street, Safety Light","350, 394I, 475, 630, 690","none","eng","Europe","Italy","","",2,"L",4,"","",4.4,11.45,13.1,158.5,108.5,270.1,1.17,1.16,7.05,12186,"13-Mar-24","24-Aug-23","04-Nov-14","FM","FH2","S","cu","FH4","FM7","FH3","FM6","DLC","","","","","","",7,"XBO"],["","2011 Alfa Romeo Giulietta Quadrifoglio Verde","AR Giulietta 11",1325,2011,"Alfa Romeo","Giulietta Quadrifoglio Verde","Buy Cars Base","","","","","","",59000,"Modern Hot Hatch","Factory",387,"D",2.8,1.8,2.1,2.4,"","",231,251,2910,12.6,63,1742,"T","Inline",4,"F","FWD","225/R18","225/R18","","Forza","350, 375, 394I, 475, 630","none","eng","Europe","Italy","Alfa Romeo Giulietta","",5,"L",4,"","",6.6,17.5,14.267,154.4,111.1,288.5,1.08,1.02,10.9,11701,"05-Oct-23","","13-Oct-11","FM","FM4","FM","","","FM7","","FM6","FH2","DLC","","DLC","","","",6,"XBO"],["","1965 Alfa Romeo Giulia Sprint GTA Stradale","AR GTA \u002765",1150,1965,"Alfa Romeo","Giulia Sprint GTA Stradale","Reward","FM Update 4","BC Open Tour","","Rare","","",300000,"Vintage Sport Compact","Factory",263,"E",1,1,1,1.8,3.2,5.3,115,105,1751,15.23,54,1570,"NA","Inline",4,"F","RWD","165/R14","165/R14","Both","Street","212, 245, 350, 562, 630","T, CS","stock","Europe","Italy","Alfa Romeo Giulia","",2,"L",4,"","",7.9,23.981,15.633,123.3,130.2,336.7,0.95,0.87,16.081,11460,"18-Jan-24","15-Aug-23","27-Oct-09","FM","FM3","R","cu","FH4","FM7","FH3","FM6","","FM5","","FM4","DLC","","",9,"XBO"],["yes","2017 Alpine A110","Alpine A110 \u002717",2973,2017,"Alpine","A110","Buy Cars Base","","","","Epic","","",100000,"Modern Sport Coupe","Factory",570,"B",3.7,2.9,3.1,4.2,"","",248,236,2432,9.81,44,1798,"T","Inline",4,"M","RWD","205/R18","205/R18","Both","Forza","350, 375, 475, 630","none","no","Europe","France","","",2,"L",4,"","",4.62,10.32,13.02,168,112.3,283.1,1.15,1.16,5.7,13122,"05-Oct-23","05-Nov-21","12-Dec-19","FM","FH4","FM","FH5","cu","","","","","","","","","","",3,"XBO"],["","1990 Alpine GTA Le Mans","Alpine GTA \u002790",2426,1990,"Alpine","GTA Le Mans","Buy Cars Base","","","","","","",74000,"Sport Touring Classics","Factory",374,"D",2.7,2,2.3,2.4,"","",197,214,2624,13.32,39,2458,"T","V",6,"R","RWD","205/R16","255/R17","","Forza","375, 394F, 475, 630, 788","none","eng","Europe","France","","",2,"L",4,"","",6.9,18,14.583,153.1,114.4,301.9,1.1,1.04,11.1,12664,"05-Oct-23","","07-Feb-17","FM","FH3","FM","","","FM7","DLC","","","","","","","","",3,"XBO"]];
+
+            const COL = {
+                IS_FAV: 0,
+                YEAR: 4,
+                MAKE: 5,
+                MODEL: 6,
+                DIVISION: 15,
+                PI: 17,
+                CLASS: 18,
+                HP: 25,
+                WEIGHT: 27,
+                CYLINDERS: 33,
+                ENGINE_LOC: 34,
+                DRIVE: 35
+            };
+
+            const normalizeDrive = (raw) => {
+                if (raw === null || raw === undefined) return "Unknown";
+                const value = String(raw).trim();
+                return value || "Unknown";
+            };
+
+            return {
+                id: "fm2023",
+                name: "FM-2023",
+                columns,
+                carData,
+                COL,
+                normalizeDrive
+            };
+        })(),
+        (() => {
+            // =========================
+            // DATASET: FM7 (PASTE HERE)
+            // =========================
+            // this is a small sample from the full Forza 7 car list, use this in the changes
+            const columns = ["Is Favorite","Division","Year","Makes: 99","Models: 837","Random Ring Race","Special In-Game Access","Event Rewards / Gifts","Specialty Dealer Dates","Value","Tier","FE Boost","Class","PI","S","H","A","L","B","HP","T","Wt","Wt / HP","%","Displ","Asp","Config","Cylinders","Eng Place","Drive","Engine Conversions (hp)","PI RWD","PI AWD","Aspiration Options","Aero/kit Options","Rear Tire","NA Asp","Region","Country","Model Family","Open Top","No lights","FH3 Special Themes","0-60 Sec","0-100 Sec","1/4 mile Sec","Top Speed","60-0 Feet","100-0 Feet","60mph g\u0027s","100mph g\u0027s","60-100 sec","Most recent game","DLC Pack (most recent game)","FH4","FM7","FH3","FM6","Apex","FH2","FM5","FH1","FM4","FM3","FM2","FM1","#","Announced ","filter","X gen"];
+            const carData = [["yes","Modern Hot Hatch",2016,"Abarth","695 Biposto","","","","",48000,"Common","","D",373,5.3,4.7,6.4,"",4.5,186,183,2198,11.82,64,1368,"T","Inline",4,"F","F","212, 332, 375","","","none","Forza","","no","Europe","Italy","","","","",5.8,16.9,"",142.7,144.7,320.1,1.11,1.06,11.1,"FM7","","FH4","FM7","FH3","DLC","","","","","","","","",3,"8/15/2017","","XBO"],["yes","Modern Hot Hatch",2013,"Abarth","Punto Supersport","","","201807 Forzathon","",42500,"Common","","D",363,5,4.6,6.5,"",4.5,177,199,2612,14.76,60,"","T","Inline",4,"F","F","212, 332, 375",350,370,"none","Forza","","eng","Europe","Italy","","","","",7.519,18.637,"",135.8,146.2,327.4,1.09,1.05,11.118,"FM7","","","FM7","","FM6","Apex","FH2","DLC","","","","","",5,"8/15/2017","","XBO"],["yes","Showroom Rally",1980,"Abarth","Fiat 131","3/24/17","","",20190122,34000,"Common","","E",284,4.8,4.2,6,"",3.9,140,130,2161,15.44,54,1995,"NA","Inline",4,"F","R","276, 375",284,293,"T, CS","Rally","","stock","Europe","Italy","","","","",8.2,24,"",130,144.5,358.6,1.03,0.96,15.8,"FM7","","FH4","FM7","FH3","FM6","","FH2","DLC","","FM4","DLC","","",7,"8/15/2017","","XBO"],["yes","Major Micros",1968,"Abarth","595 esseesse","","","","",28000,"Common","","E",109,3,3.7,3,"",3.7,28,34,1257,44.89,42,594,"NA","Inline",2,"R","R","232, 305, 375",109,110,"CS","Forza","","stock","Europe","Italy","","","","",28.32,999.999,"",74.3,132.6,"na",0.96,0.9,971.679,"FM7","","FH4","FM7","FH3","FM6","","DLC","","FH1","","","","",5,"7/25/2017","","XBO"],["","Sport GT",2017,"Acura","NSX","","","201901 Forzathon","",225000,"Rare","","S",736,7,5.2,8.8,"",5.3,573,623,3803,6.64,42,3493,"TT","V",6,"M","A",650,"",736,"none","Forza","","eng","N. America","U.S.","NSX","","","",2.7,6.4,"",190.8,131.9,309.6,1.16,1.19,3.7,"FM7","","FH4","FM7","DLC","","","","","","","","","",2,"8/1/2017","","XBO"],["","Sport GT",2017,"Acura","NSX Forza Edition","","Championship","FDC E, 201710 VIP","",100,"Legendary","40%CR + 40%CR at Dubai","S",773,6.8,5.9,8.8,"",6,577,623,3801,6.59,42,"","TT","V",6,"M","A",650,765,773,"none","FE Bodykit, tire lettering","","eng","N. America","U.S.","NSX","","","",2.7,6.4,"",184.1,128.4,298.6,1.27,1.32,3.7,"FM7","","","FE","","","","","","","","","","",1,"10/3/2017","tuned","XBO"],["","Sport Compact Icons",2002,"Acura","RSX Type-S","","","",20190115,27000,"Common","","D",339,5.8,4.2,6.5,"",3.9,200,142,2820,14.1,61,1998,"NA","Inline",4,"F","F","332, 375",330,350,"T, CS","Aftermarket","","stock","N. America","U.S.","Integra","","","RPC",6.7,18,"",148.4,125.9,330,1.03,0.98,11.3,"FM7","","FH4","FM7","FH3","FM6","","FH2","DLC","","FM4","FM3","FM2","FM1",9,"8/1/2017","","XBO"],["","Sport Compact Icons",2001,"Acura","Integra Type-R","","","","",38500,"Common","","D",357,5.7,4.3,6.6,"",4,195,130,2639,13.53,62,1797,"NA","Inline",4,"F","F","212, 332",348,369,"T, PDS, CS","Forza","","stock","N. America","U.S.","Integra","","","RPC",6.165,14.684,"",154.1,123.6,316.6,1.04,1,8.519,"FM7","","FH4","FM7","FH3","FM6","","DLC","FM5","","FM4","FM3","FM2","FM1",9,"8/1/2017","","XBO"],["","Sport Touring",2017,"Alfa Romeo","Giulia Quadrifoglio","DLC","Paid DLC","Free w/DLC","",120000,"Rare","","A",605,7.4,5.1,7.9,"",5.2,506,442,3822,7.55,50,"","TT","V",6,"F","R","562v10, 562v8, 650",605,657,"none","Forza","","eng","Europe","Italy","","","","",3.816,8.717,"",197.4,142.8,347.6,1.14,1.16,4.901,"FM7","201711 Samsung","FH4","DLC","","","","","","","","","","",1,"11/3/2017","","XBO"],["yes","Sport Coupe",2014,"Alfa Romeo","4C","","","",20190423,135000,"Rare","","B",532,5.9,5.2,7.3,"",4.9,240,258,2500,10.42,43,1742,"T","Inline",4,"M","R","332, 475, 690",532,553,"none","Safety lights",235,"eng","Europe","Italy","","","","",4.4,11.45,"",158.8,126.7,315,1.17,1.16,7.05,"FM7","","FH4","FM7","FH3","FM6","","DLC","","","","","","",4,"8/15/2017","","XBO"],["","Modern Hot Hatch",2011,"Alfa Romeo","Giulietta Quadrifoglio Verde","","","","",45000,"Common","","D",391,5.7,4.5,6.7,"",4.2,231,251,2910,12.6,63,1742,"T","Inline",4,"F","F","332, 375",382,404,"none","Forza",225,"eng","Europe","Italy","","","","",6.6,17.5,"",154.5,140.9,336.2,1.07,1.02,10.9,"FM7","","","FM7","","FM6","","FH2","DLC","","DLC","","","",5,"8/15/2017","","XBO"],["","Supercar Renaissance",2007,"Alfa Romeo","8C Competizione","","","201811 Bounty","",650000,"Legendary","","B",596,7.2,4.9,8,8.1,4.7,450,354,3495,7.77,49,4691,"NA","V",8,"F","R",650,596,628,"CS","Forza","","stock","Europe","Italy","","","","",4.2,9.3,"",193.6,123.8,319.1,1.11,1.11,5.1,"FM7","","FH4","FM7","FH3","FM6","","FH2","FM5","FH1","FM4","FM3","","",8,"8/15/2017","","XBO"],["","Early Sport Touring",1992,"Alfa Romeo","155 Q4 ","","","","",36500,"Common","","D",355,5.6,4.3,6.4,"",4,187,219,3064,16.39,61,1995,"T","Inline",4,"F","A","332, 415, 475",363,355,"none","Preset","","no","Europe","Italy","","","","RPC",6.72,18.619,"",147.9,142.8,344.9,1.04,1.01,11.899,"FM7","","","FM7","FH3","FM6","","","","","DLC","","","",4,"8/15/2017","","XBO"],["","Early Sport Touring",1992,"Alfa Romeo","Milano Quadrifoglio Verde","","","","",37500,"Common","","E",291,5.1,4,6,"",3.9,185,181,2866,15.49,51,2959,"NA","V",6,"F","R","332, 415, 562v8",291,302,"TT, PDS","Forza","","stock","Europe","Italy","","","","RPC",8.122,21.596,"",134.3,148,367.1,1,0.95,13.474,"FM7","","","FM7","FH3","DLC","","","","","","","","",3,"8/15/2017","","XBO"],["","Early Sport Touring",1990,"Alfa Romeo","SZ Sprint Zagato","","","201804 Leagues, 201805 Rivals","",79000,"Uncommon","","D",369,5.7,4.7,6.4,"",4.4,207,181,2778,13.42,56,"","NA","V",6,"F","R","276, 415, 562v8",369,392,"TT, CS","Forza","","stock","Europe","Italy","","","","",7,18.7,"",152.6,138.6,344.1,1.09,1.07,11.7,"FM7","","","FM7","","FM6","","","DLC","","","","","",3,"8/15/2017","","XBO"],["","Early Sport Touring",1986,"Alfa Romeo","GTV-6","","","",20190319,37500,"Common","","E",276,4.9,4,5.7,"",3.9,155,157,2840,18.32,51,2500,"NA","V",6,"F","R","276, 415, 562v8",276,283,"TT, PDS","Street","","stock","Europe","Italy","","","","",9.1,25.2,"",131.4,143.5,364.7,1,0.96,16.1,"FM7","","","FM7","","FM6","","","DLC","","FM4","","","",4,"8/15/2017","","XBO"],["","Sport Compact Icons",1986,"Alfa Romeo","Spider Quadrifoglio Verde","7/27/18","","","",37000,"Common","","E",259,4.6,4.2,5.3,"",3.9,115,119,2549,22.17,56,1962,"NA","Inline",4,"F","R","212, 332, 415, 562v8",259,264,"T, CS","Forza","","stock","Europe","Italy","","Yes","","",9.8,36.7,"",121.6,143,357.8,1.02,0.97,26.9,"FM7","","","FM7","","FM6","","FH2","DLC","","FM4","","","",5,"8/15/2017","","XBO"],["","Vintage Sport GT",1970,"Alfa Romeo","Montreal","","","","20181120, 20190528, W8",115000,"Rare","","E",288,5.5,4,5.9,"",3.7,200,174,2810,14.05,55,2600,"NA","V",8,"F","R","333, 415, 562v8",288,297,"TT","Forza","","stock","Europe","Italy","","","","",8,21.2,"",146.8,135.5,347.8,0.99,0.96,13.2,"FM7","","","FM7","","","","","","","FM4","","","",2,"8/15/2017","","XBO"],["","Vintage GT Racing",1968,"Alfa Romeo","33 Stradale","","","","20181009, 20190625, W12",900000,"Legendary","","B",600,6.5,5.3,8.3,8,4.9,245,148,1543,6.3,40,1995,"NA","V",8,"M","R","375, 562v8",600,"","TT","Forza","","stock","Europe","Italy","","","","CC, HR",5.5,11.39,"",174.5,106,267.7,1.21,1.13,5.89,"FM7","","FH4","FM7","FH3","FM6","","FH2","DLC","","DLC","","","",6,"7/25/2017","","XBO"],["","Vintage Sport Compact",1965,"Alfa Romeo","Giulia Sprint GTA Stradale","","","","20180925, W3",73000,"Uncommon","","E",272,4.2,3.7,6.3,"",3.5,115,105,1676,14.57,54,1570,"NA","Inline",4,"F","R","212, 332, 562v8",272,285,"T, CS","Forza","","stock","Europe","Italy","","","","",7.9,24,"",116.2,128.3,332.4,0.98,0.88,16.1,"FM7","","FH4","FM7","FH3","FM6","","","FM5","","FM4","DLC","","",6,"7/25/2017","","XBO"],["","Vintage GT Racing",1965,"Alfa Romeo","Giulia TZ2","","","",20181009,800000,"Legendary","","C",488,5.7,4.9,7.7,"",4.5,170,130,1367,8.04,54,1570,"NA","Inline",4,"F","R","562v8, 650",488,518,"T","Forza","","stock","Europe","Italy","","","","CC",5.82,13.33,"",153.8,121.7,300.8,1.16,1.03,7.51,"FM7","","FH4","FM7","FH3","FM6","","FH2","","","","","","",4,"7/25/2017","race","XBO"],["","Vintage Sport Compact",1958,"Alfa Romeo","Giulietta Sprint Veloce","DLC","Paid DLC","Free w/DLC","",35000,"Uncommon","","E",228,4.1,3.6,5.2,"",3.3,90,97,1874,20.82,54,"","NA","Inline",4,"F","R","212, 332, 562v8",228,235,"T, PDS","Lights",155,"stock","Europe","Italy","","","","",10.518,36.5,"",110.7,137.8,349.2,0.95,0.87,25.982,"FM7","201807 Top Gear","","DLC","","","","","","","","","","",1,"7/2/2018","","XBO"],["","The Birth of Grand Prix",1950,"Alfa Romeo",158,"","","201905 Bounty","",500000,"Super Rare","","B",574,6.1,4.9,8.2,"",4.5,384,286,1568,4.08,52,"","PDS","Inline",8,"F","R","none",574,"na","none","none","","no","Europe","Italy","","","","",4.117,8.9,"",165.4,106.5,277.8,1.13,1.12,4.783,"FM7","","","FM7","","","","","","","","","","",1,"7/25/2017","race","XBO"],["","The Birth of Grand Prix",1934,"Alfa Romeo","P3","","Showcase","Domination","",100,"Super Rare","","B",540,6.1,4.5,8.2,"",4.3,285,300,1653,5.8,50,"","PDS","Inline",8,"F","R","none",540,"na","none","none","","no","Europe","Italy","","","","",4.482,9.2,"",161.9,108.4,283.6,1.07,1.02,4.718,"FM7","","FH4","FM7","","DLC","","","","","","","","",2,"7/25/2017","race","XBO"],["","The Birth of Grand Prix",1932,"Alfa Romeo","8C 2300 Spider","DLC","Paid DLC","Free w/DLC","",500000,"Rare","","E",290,4.4,4.2,6.5,"",4.2,155,173,2185,14.1,52,"","PDS","Inline",8,"F","R","none",290,"na","none","none","","no","Europe","Italy","","","","",9,23,"",120.5,116.5,295.6,1.02,0.98,14,"FM7","201803 March","","DLC","","","","","","","","","","",1,"3/5/2018","race","XBO"],["","Off-road Buggies",2015,"Alumi Craft","Class 10 Race Car","","","","",85000,"Uncommon","","D",332,4.2,4.5,6.8,"",4.6,196,190,2200,11.22,45,2384,"NA","Inline",4,"R","R","none",322,"na","none","none","","stock","N. America","U.S.","","","","",5.617,17.117,"",116,112.5,286.2,1.07,1.01,11.5,"FM7","","FH4","FM7","FH3","","","","","","","","","",2,"8/29/2017","race","XBO"],["","Hot Hatch Genesis",1977,"AMC","Pacer X","8/16/19","","","20190101, W5",20000,"Common","","E",209,4.3,3.5,4.5,5.1,3.3,120,212,3425,28.54,55,4229,"NA","Inline",6,"F","R","232, 276, 415, 425",209,213,"T, CS","Hood","","stock","N. America","U.S.","","","","IMC?",13.381,43.88,"",113.6,150.6,381.5,0.93,0.88,30.499,"FM7","","","FM7","cu","","","","","","DLC","","","",3,"8/8/2017","","XBO"],["","Historic Road Racing",1971,"AMC","Javelin-AMX","","","201808 Leagues","",53000,"Uncommon","","D",356,4.7,3.9,7.2,"",3.7,330,430,3445,10.44,53,3445,"NA","V",8,"F","R","415, 425, 825",356,409,"T, PDS","Hood","","stock","N. America","U.S.","","","","",6.5,14.5,"",128.3,143.4,351.1,0.99,0.93,8,"FM7","","FH4","FM7","FH3","FM6","","FH2","FM5","DLC","FM4","DLC","","",8,"8/8/2017","","XBO"]];
+
+            const COL = {
+                IS_FAV: 0,
+                DIVISION: 1,
+                YEAR: 2,
+                MAKE: 3,
+                MODEL: 4,
+                CLASS: 12,
+                PI: 13,
+                HP: 19,
+                WEIGHT: 21,
+                CYLINDERS: 27,
+                ENGINE_LOC: 28,
+                DRIVE: 29
+            };
+
+            const normalizeDrive = (raw) => {
+                if (raw === null || raw === undefined) return "Unknown";
+                const value = String(raw).trim();
+                if (value === "F") return "FWD";
+                if (value === "R") return "RWD";
+                if (value === "A") return "AWD";
+                return value || "Unknown";
+            };
+
+            return {
+                id: "fm7",
+                name: "FM7",
+                columns,
+                carData,
+                COL,
+                normalizeDrive
+            };
+        })()
+    ];
+    const DATASET_BY_ID = Object.fromEntries(DATASETS.map(dataset => [dataset.id, dataset]));
 
     // --- DATA END ---
 
-    // Column Indices Mapping
-    const COL = {
-        IS_FAV: 0,
-        YEAR: 4,
-        MAKE: 5,
-        MODEL: 6,
-        DIVISION: 15,
-        PI: 17,
-        CLASS: 18,
-        HP: 25,
-        WEIGHT: 27,
-        CYLINDERS: 33,
-        ENGINE_LOC: 34,
-        DRIVE: 35
-    };
+    const DATASET_STORAGE_KEY = "fgb.datasetId";
+    let currentDatasetId = localStorage.getItem(DATASET_STORAGE_KEY) || DATASETS[0].id;
+    if (!DATASET_BY_ID[currentDatasetId]) {
+        currentDatasetId = DATASETS[0].id;
+    }
+    let activeDataset = DATASET_BY_ID[currentDatasetId];
+    let currentCarData = activeDataset.carData;
+    let COL = activeDataset.COL;
 
     // State
     let selectedIndices = new Set();
@@ -504,6 +595,7 @@
     const searchInput = document.getElementById('searchInput');
     const favBtn = document.getElementById('favBtn');
     const unitToggle = document.getElementById('unitToggle');
+    const datasetSelect = document.getElementById('datasetSelect');
     const resultModal = document.getElementById('resultModal');
     const modalViewRestrictions = document.getElementById('modalViewRestrictions');
     const modalViewMatches = document.getElementById('modalViewMatches');
@@ -512,6 +604,7 @@
 
     // --- INITIALIZATION ---
     function init() {
+        datasetSelect.value = currentDatasetId;
         renderGrid();
     }
 
@@ -539,11 +632,24 @@
         return piValue ?? "Unknown";
     }
 
+    function getDriveLabel(raw) {
+        return activeDataset.normalizeDrive(raw);
+    }
+
+    function setActiveDataset(datasetId) {
+        const nextDataset = DATASET_BY_ID[datasetId] || DATASETS[0];
+        currentDatasetId = nextDataset.id;
+        activeDataset = nextDataset;
+        currentCarData = activeDataset.carData;
+        COL = activeDataset.COL;
+        localStorage.setItem(DATASET_STORAGE_KEY, currentDatasetId);
+    }
+
     // --- RENDER LOGIC ---
     function renderGrid() {
         carContainer.innerHTML = "";
         
-        carData.forEach((car, index) => {
+        currentCarData.forEach((car, index) => {
             // Filter: Search
             const searchStr = (car[COL.MAKE] + " " + car[COL.MODEL] + " " + car[COL.DIVISION]).toLowerCase();
             if (searchQuery && !searchStr.includes(searchQuery)) return;
@@ -561,6 +667,7 @@
             const wtDisplay = wtValue === null ? "Unknown" : formatWeight(wtValue);
             const hpDisplay = hpValue === null ? "Unknown" : formatPower(hpValue);
             const piDisplay = formatPiBadge(piValue, piClass);
+            const driveLabel = getDriveLabel(car[COL.DRIVE]);
 
             // Build Card
             const isSelected = selectedIndices.has(index);
@@ -578,7 +685,7 @@
                     <span class="pi-badge">${piDisplay}</span>
                     <span class="stat-tag">${hpDisplay}</span>
                     <span class="stat-tag">${wtDisplay}</span>
-                    <span class="stat-tag">${car[COL.DRIVE]}</span>
+                    <span class="stat-tag">${driveLabel}</span>
                 </div>
                 <div class="division">${car[COL.DIVISION]}</div>
             `;
@@ -626,6 +733,19 @@
         selectedIndices.clear();
         updateFab();
         renderGrid();
+    }
+
+    function handleDatasetChange(datasetId) {
+        setActiveDataset(datasetId);
+        selectedIndices.clear();
+        updateFab();
+        renderGrid();
+        if (resultModal.classList.contains('open')) {
+            currentRestrictions = null;
+            currentMatches = [];
+            modalViewRestrictions.innerHTML = `<div class="no-cars-msg">Select cars and run Event Setup to see restrictions.</div>`;
+            renderMatchesView(null);
+        }
     }
 
     function updateFab() {
@@ -696,7 +816,7 @@
         const cylinders = new Set();
 
         selectedIndices.forEach(idx => {
-            const car = carData[idx];
+            const car = currentCarData[idx];
 
             // Numeric Stats
             const year = toNumber(car[COL.YEAR]);
@@ -711,7 +831,7 @@
 
             // Categorical Stats
             divisions.add(car[COL.DIVISION]);
-            drives.add(car[COL.DRIVE]);
+            drives.add(getDriveLabel(car[COL.DRIVE]));
             engines.add(mapEngineLoc(car[COL.ENGINE_LOC]));
             cylinders.add(car[COL.CYLINDERS]);
         });
@@ -781,7 +901,7 @@
     function getMatchingIndices(restrictions) {
         const matches = [];
 
-        carData.forEach((car, index) => {
+        currentCarData.forEach((car, index) => {
             const year = toNumber(car[COL.YEAR]);
             const pi = toNumber(car[COL.PI]);
             const hp = toNumber(car[COL.HP]);
@@ -793,7 +913,7 @@
             if (!isWithinRange(wt, restrictions.weight)) return;
 
             if (restrictions.divisions.length && !restrictions.divisions.includes(car[COL.DIVISION])) return;
-            if (restrictions.drives.length && !restrictions.drives.includes(car[COL.DRIVE])) return;
+            if (restrictions.drives.length && !restrictions.drives.includes(getDriveLabel(car[COL.DRIVE]))) return;
             if (restrictions.engines.length && !restrictions.engines.includes(mapEngineLoc(car[COL.ENGINE_LOC]))) return;
             if (restrictions.cylinders.length && !restrictions.cylinders.includes(car[COL.CYLINDERS])) return;
 
@@ -804,11 +924,12 @@
     }
 
     function buildMatchCard(index, isSelected) {
-        const car = carData[index];
+        const car = currentCarData[index];
         const wtValue = toNumber(car[COL.WEIGHT]);
         const hpValue = toNumber(car[COL.HP]);
         const piValue = toNumber(car[COL.PI]);
         const piClass = car[COL.CLASS];
+        const driveLabel = getDriveLabel(car[COL.DRIVE]);
 
         const wtDisplay = wtValue === null ? "Unknown" : formatWeight(wtValue);
         const hpDisplay = hpValue === null ? "Unknown" : formatPower(hpValue);
@@ -829,7 +950,7 @@
                     <span class="pi-badge">${piDisplay}</span>
                     <span class="stat-tag">${hpDisplay}</span>
                     <span class="stat-tag">${wtDisplay}</span>
-                    <span class="stat-tag">${car[COL.DRIVE]}</span>
+                    <span class="stat-tag">${driveLabel}</span>
                 </div>
                 <div class="division">${car[COL.DIVISION]}</div>
             </div>
@@ -855,7 +976,7 @@
 
         if (matchesSearchQuery) {
             filteredMatches = filteredMatches.filter((idx) => {
-                const car = carData[idx];
+                const car = currentCarData[idx];
                 const searchStr = `${car[COL.MAKE]} ${car[COL.MODEL]} ${car[COL.DIVISION]}`.toLowerCase();
                 return searchStr.includes(matchesSearchQuery);
             });
