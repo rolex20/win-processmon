@@ -271,6 +271,38 @@
 
         .modal-body { padding: 20px; display: flex; flex-direction: column; gap: 15px; }
 
+        .modal-tabs {
+            display: flex;
+            gap: 10px;
+            background: #1f1f1f;
+            border: 1px solid #333;
+            padding: 6px;
+            border-radius: 999px;
+        }
+
+        .modal-tab-btn {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-sub);
+            font-weight: 700;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .modal-tab-btn.active {
+            background: var(--accent);
+            color: black;
+        }
+
+        .modal-view { display: none; flex-direction: column; gap: 12px; }
+        .modal-view.active { display: flex; }
+
         .result-row {
             display: flex;
             justify-content: space-between;
@@ -288,6 +320,98 @@
         .tag-list { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
         .mini-tag { background: #333; font-size: 0.8rem; padding: 2px 6px; border-radius: 3px; color: white; }
         .mini-tag.unknown { background: #2a2a2a; border: 1px solid #555; color: #ddd; }
+
+        .matches-summary {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 10px;
+            padding: 12px;
+        }
+
+        .matches-summary strong { color: var(--accent); }
+
+        .matches-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .matches-filter-group {
+            display: flex;
+            background: #1f1f1f;
+            border: 1px solid #333;
+            border-radius: 999px;
+            padding: 4px;
+            gap: 4px;
+        }
+
+        .matches-filter-btn {
+            border: none;
+            background: transparent;
+            color: var(--text-sub);
+            font-size: 0.8rem;
+            font-weight: 700;
+            padding: 6px 12px;
+            border-radius: 999px;
+            cursor: pointer;
+        }
+
+        .matches-filter-btn.active {
+            background: var(--accent);
+            color: black;
+        }
+
+        .matches-search {
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .matches-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 320px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .match-card {
+            cursor: default;
+        }
+
+        .match-card:hover {
+            transform: none;
+            border-color: var(--border);
+        }
+
+        .match-card.extra {
+            border-color: #ff5555;
+        }
+
+        .match-badge {
+            margin-left: auto;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 999px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .match-badge.selected {
+            background: var(--accent);
+            color: black;
+        }
+
+        .match-badge.extra {
+            background: rgba(255, 85, 85, 0.2);
+            color: #ff8d8d;
+            border: 1px solid #ff5555;
+        }
 
         .no-cars-msg { text-align: center; color: #666; margin-top: 50px; font-style: italic; }
 
@@ -323,8 +447,17 @@
             <div class="modal-title">Event Restrictions</div>
             <button class="modal-close" onclick="toggleModal(false)">×</button>
         </div>
-        <div class="modal-body" id="modalContent">
-            <!-- Dynamic Content -->
+        <div class="modal-body">
+            <div class="modal-tabs">
+                <button class="modal-tab-btn active" id="modalTabRestrictions" onclick="setModalTab('restrictions')">Restrictions</button>
+                <button class="modal-tab-btn" id="modalTabMatches" onclick="setModalTab('matches')">Matches</button>
+            </div>
+            <div class="modal-view active" id="modalViewRestrictions">
+                <!-- Restrictions Content -->
+            </div>
+            <div class="modal-view" id="modalViewMatches">
+                <!-- Matches Content -->
+            </div>
         </div>
     </div>
 </div>
@@ -358,6 +491,11 @@
     let isImperial = true; // true = lbs/hp, false = kg/kw
     let showFavOnly = false;
     let searchQuery = "";
+    let currentRestrictions = null;
+    let currentMatches = [];
+    let activeModalTab = "restrictions";
+    let matchesFilter = "all";
+    let matchesSearchQuery = "";
 
     // DOM Elements
     const carContainer = document.getElementById('carContainer');
@@ -367,7 +505,10 @@
     const favBtn = document.getElementById('favBtn');
     const unitToggle = document.getElementById('unitToggle');
     const resultModal = document.getElementById('resultModal');
-    const modalContent = document.getElementById('modalContent');
+    const modalViewRestrictions = document.getElementById('modalViewRestrictions');
+    const modalViewMatches = document.getElementById('modalViewMatches');
+    const modalTabRestrictions = document.getElementById('modalTabRestrictions');
+    const modalTabMatches = document.getElementById('modalTabMatches');
 
     // --- INITIALIZATION ---
     function init() {
@@ -468,7 +609,7 @@
         unitToggle.innerHTML = isImperial ? 'Metric / <b>Imperial</b>' : '<b>Metric</b> / Imperial';
         unitToggle.classList.toggle('active', !isImperial); // visual cue
         renderGrid();
-        if(resultModal.style.display === 'flex') analyzeGrid(); // Refresh modal if open
+        if (resultModal.classList.contains('open')) analyzeGrid(true); // Refresh modal if open
     }
 
     function toggleSelection(index) {
@@ -542,23 +683,21 @@
         return formatted;
     }
 
-    function analyzeGrid() {
-        if (selectedIndices.size === 0) return;
-
+    function computeRestrictionsFromSelection() {
         // Init Stats
         const yearStats = initStatTracker();
         const piStats = initStatTracker();
         const hpStats = initStatTracker();
         const wtStats = initStatTracker();
-        
-        let divisions = new Set();
-        let drives = new Set();
-        let engines = new Set();
-        let cylinders = new Set();
+
+        const divisions = new Set();
+        const drives = new Set();
+        const engines = new Set();
+        const cylinders = new Set();
 
         selectedIndices.forEach(idx => {
             const car = carData[idx];
-            
+
             // Numeric Stats
             const year = toNumber(car[COL.YEAR]);
             const pi = toNumber(car[COL.PI]);
@@ -577,51 +716,214 @@
             cylinders.add(car[COL.CYLINDERS]);
         });
 
+        return {
+            year: yearStats,
+            pi: piStats,
+            hp: hpStats,
+            weight: wtStats,
+            divisions: Array.from(divisions).sort(),
+            drives: Array.from(drives).sort(),
+            engines: Array.from(engines).sort(),
+            cylinders: Array.from(cylinders).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }))
+        };
+    }
+
+    function renderRestrictionsView(restrictions) {
         // Generate HTML
         let html = ``;
 
         // Year
-        const yearStr = formatRange(yearStats, (value) => value);
+        const yearStr = formatRange(restrictions.year, (value) => value);
         html += createRow("Year Range", yearStr);
 
         // PI
-        const piStr = formatRange(piStats, (value) => value);
+        const piStr = formatRange(restrictions.pi, (value) => value);
         html += createRow("PI Range", piStr);
 
         // Power
-        const hpStr = formatRange(hpStats, formatPower);
+        const hpStr = formatRange(restrictions.hp, formatPower);
         html += createRow("Power", hpStr);
 
         // Weight
-        const wtStr = formatRange(wtStats, formatWeight);
+        const wtStr = formatRange(restrictions.weight, formatWeight);
         html += createRow("Weight", wtStr);
 
         // Division
-        const divArray = Array.from(divisions).sort();
         let divVal = "";
-        if (divArray.length === 1) {
-            divVal = divArray[0];
+        if (restrictions.divisions.length === 1) {
+            divVal = restrictions.divisions[0];
         } else {
-            divVal = `<span class="warning">Mixed (${divArray.length})</span>`;
-            // Add tags
+            divVal = `<span class="warning">Mixed (${restrictions.divisions.length})</span>`;
         }
         html += createRow("Division", divVal);
-        if (divArray.length > 1) html += createTags(divArray);
+        if (restrictions.divisions.length > 1) html += createTags(restrictions.divisions);
 
         // Drive
-        const driveArray = Array.from(drives).sort();
-        html += createRow("Drivetrain", driveArray.join(", "));
+        html += createRow("Drivetrain", restrictions.drives.join(", "));
 
         // Engine Config
-        const engArray = Array.from(engines).sort();
-        html += createRow("Engine Pos.", engArray.join(", "));
+        html += createRow("Engine Pos.", restrictions.engines.join(", "));
 
         // Cylinders
-        const cylArray = Array.from(cylinders).sort((a,b)=>a-b);
-        html += createRow("Cylinders", cylArray.join(", "));
+        html += createRow("Cylinders", restrictions.cylinders.join(", "));
 
-        modalContent.innerHTML = html;
+        modalViewRestrictions.innerHTML = html;
+    }
+
+    function isWithinRange(value, range) {
+        if (!Number.isFinite(range.min) || !Number.isFinite(range.max)) {
+            return true;
+        }
+        if (value === null) return false;
+        return value >= range.min && value <= range.max;
+    }
+
+    function getMatchingIndices(restrictions) {
+        const matches = [];
+
+        carData.forEach((car, index) => {
+            const year = toNumber(car[COL.YEAR]);
+            const pi = toNumber(car[COL.PI]);
+            const hp = toNumber(car[COL.HP]);
+            const wt = toNumber(car[COL.WEIGHT]);
+
+            if (!isWithinRange(year, restrictions.year)) return;
+            if (!isWithinRange(pi, restrictions.pi)) return;
+            if (!isWithinRange(hp, restrictions.hp)) return;
+            if (!isWithinRange(wt, restrictions.weight)) return;
+
+            if (restrictions.divisions.length && !restrictions.divisions.includes(car[COL.DIVISION])) return;
+            if (restrictions.drives.length && !restrictions.drives.includes(car[COL.DRIVE])) return;
+            if (restrictions.engines.length && !restrictions.engines.includes(mapEngineLoc(car[COL.ENGINE_LOC]))) return;
+            if (restrictions.cylinders.length && !restrictions.cylinders.includes(car[COL.CYLINDERS])) return;
+
+            matches.push(index);
+        });
+
+        return matches;
+    }
+
+    function buildMatchCard(index, isSelected) {
+        const car = carData[index];
+        const wtValue = toNumber(car[COL.WEIGHT]);
+        const hpValue = toNumber(car[COL.HP]);
+        const piValue = toNumber(car[COL.PI]);
+        const piClass = car[COL.CLASS];
+
+        const wtDisplay = wtValue === null ? "Unknown" : formatWeight(wtValue);
+        const hpDisplay = hpValue === null ? "Unknown" : formatPower(hpValue);
+        const piDisplay = formatPiBadge(piValue, piClass);
+        const badge = isSelected
+            ? `<span class="match-badge selected">Selected</span>`
+            : `<span class="match-badge extra">Extra</span>`;
+        const extraClass = isSelected ? "selected" : "extra";
+
+        return `
+            <div class="car-card match-card ${extraClass}">
+                <div class="car-header">
+                    <span class="car-year">${car[COL.YEAR]}</span>
+                    <span class="car-title">${car[COL.MAKE]} ${car[COL.MODEL]}</span>
+                    ${badge}
+                </div>
+                <div class="car-stats">
+                    <span class="pi-badge">${piDisplay}</span>
+                    <span class="stat-tag">${hpDisplay}</span>
+                    <span class="stat-tag">${wtDisplay}</span>
+                    <span class="stat-tag">${car[COL.DRIVE]}</span>
+                </div>
+                <div class="division">${car[COL.DIVISION]}</div>
+            </div>
+        `;
+    }
+
+    function renderMatchesView(restrictions) {
+        if (!restrictions) {
+            modalViewMatches.innerHTML = `<div class="no-cars-msg">Select cars and run Event Setup to see matches.</div>`;
+            return;
+        }
+
+        const matches = currentMatches.length ? currentMatches : getMatchingIndices(restrictions);
+        const selectedMatchCount = matches.filter((idx) => selectedIndices.has(idx)).length;
+        const extrasCount = matches.length - selectedMatchCount;
+
+        let filteredMatches = matches;
+        if (matchesFilter === "selected") {
+            filteredMatches = matches.filter((idx) => selectedIndices.has(idx));
+        } else if (matchesFilter === "extras") {
+            filteredMatches = matches.filter((idx) => !selectedIndices.has(idx));
+        }
+
+        if (matchesSearchQuery) {
+            filteredMatches = filteredMatches.filter((idx) => {
+                const car = carData[idx];
+                const searchStr = `${car[COL.MAKE]} ${car[COL.MODEL]} ${car[COL.DIVISION]}`.toLowerCase();
+                return searchStr.includes(matchesSearchQuery);
+            });
+        }
+
+        let listHtml = "";
+        if (filteredMatches.length === 0) {
+            listHtml = `<div class="no-cars-msg">No matching cars for the current filter.</div>`;
+        } else {
+            listHtml = filteredMatches
+                .map((idx) => buildMatchCard(idx, selectedIndices.has(idx)))
+                .join("");
+        }
+
+        modalViewMatches.innerHTML = `
+            <div class="matches-summary">
+                <div>Total matched: <strong>${matches.length}</strong></div>
+                <div>Selected: <strong>${selectedMatchCount}</strong> · Extras: <strong>${extrasCount}</strong></div>
+            </div>
+            <div class="matches-controls">
+                <div class="matches-filter-group">
+                    <button class="matches-filter-btn ${matchesFilter === "all" ? "active" : ""}" onclick="setMatchesFilter('all')">All</button>
+                    <button class="matches-filter-btn ${matchesFilter === "extras" ? "active" : ""}" onclick="setMatchesFilter('extras')">Extras</button>
+                    <button class="matches-filter-btn ${matchesFilter === "selected" ? "active" : ""}" onclick="setMatchesFilter('selected')">Selected</button>
+                </div>
+                <input type="text" class="matches-search" placeholder="Search matches..." value="${matchesSearchQuery}" oninput="setMatchesSearchQuery(this.value)">
+            </div>
+            <div class="matches-list">${listHtml}</div>
+        `;
+    }
+
+    function setModalTab(tabName) {
+        if (tabName !== "restrictions" && tabName !== "matches") return;
+        activeModalTab = tabName;
+        const isRestrictions = tabName === "restrictions";
+        modalTabRestrictions.classList.toggle("active", isRestrictions);
+        modalTabMatches.classList.toggle("active", !isRestrictions);
+        modalViewRestrictions.classList.toggle("active", isRestrictions);
+        modalViewMatches.classList.toggle("active", !isRestrictions);
+
+        if (!isRestrictions) {
+            renderMatchesView(currentRestrictions);
+        }
+    }
+
+    function setMatchesFilter(filter) {
+        matchesFilter = filter;
+        renderMatchesView(currentRestrictions);
+    }
+
+    function setMatchesSearchQuery(value) {
+        matchesSearchQuery = String(value || "").toLowerCase();
+        renderMatchesView(currentRestrictions);
+    }
+
+    function analyzeGrid(preserveTab = false) {
+        if (selectedIndices.size === 0) return;
+
+        currentRestrictions = computeRestrictionsFromSelection();
+        currentMatches = getMatchingIndices(currentRestrictions);
+        renderRestrictionsView(currentRestrictions);
         toggleModal(true);
+
+        if (preserveTab) {
+            setModalTab(activeModalTab);
+        } else {
+            setModalTab("restrictions");
+        }
     }
 
     function createRow(label, value) {
