@@ -1,152 +1,135 @@
-# ProcessMon (PowerShell)
+# win-processmon (PowerShell performance toolkit)
 
-When a game stutters, the obvious suspects (GPU driver, shaders, “bad optimization”) get all the blame — but a lot of “mystery” hitching is really Windows doing something in the background at exactly the wrong time. **ProcessMon** is a lightweight, real-time Windows process monitor that watches for **process start/stop events** and captures a small set of **CPU / memory / I/O** signals so you can correlate “I felt that hitch” with “this thing launched.”
+This repository started with **`ProcessMon.ps1`**: a focused monitor to catch what Windows launches in the background while gaming, especially short-lived or periodic tasks that can line up with frame-time spikes (for example `TiWorker.exe`, `CompatTelRunner.exe`, and similar maintenance/telemetry processes).
 
-**Tech snapshot:** PowerShell 5.1 + .NET Runspaces (true multi-threading), WMI/CIM event tracing (`Win32_ProcessStartTrace` / `Win32_ProcessStopTrace`), bulk CIM performance sampling (`Win32_PerfFormattedData_PerfProc_Process`), thread-safe shared state with synchronized hashtables + `Monitor` locks, and CSV reporting.
+From there, the workflow expanded into additional scripts to test mitigation strategies on hybrid CPUs (Alder Lake class):
+- first by steering some background activity toward efficiency cores,
+- then by validating behavior with `Stutter-Hunter.ps1`,
+- and finally by refining detection logic in related tooling so many targets are handled with **Idle priority** adjustments instead of broader, more aggressive changes.
 
----
-
-## What it does (and doesn’t)
-
-**It does:**
-- Detect **process starts/stops** with very low latency (WMI event traces)
-- Capture per-process peaks for:
-  - CPU (%)
-  - Working Set / Private Bytes
-  - Disk I/O read/write rate (Mbps) + estimated totals
-- Enrich events with useful context:
-  - Owner (user/SID), command line, parent process name, session id
-- Export a **CSV report** you can sort/filter after a gaming session
-
-**It doesn’t:**
-- Replace Windows Performance Recorder (WPR), ETW traces, or deep profilers  
-  This is meant to answer: *“What fired up right when my frame-time spiked?”*
-- Guarantee visibility into every system/service process unless you run as Admin
+The goal is practical control and observability: identify interference, test changes, measure results, and keep what actually helps.
 
 ---
 
-## Why you might use it (gaming & sim racing & sim flying)
+## Tech snapshot
 
-If you’ve ever had:
-- microstutter / “FPS lag” that comes and goes
-- a periodic hitch every few minutes
-- a random freeze when a launcher, updater, overlay, anti-cheat, or background helper wakes up…
+- **PowerShell 5.1 / Windows PowerShell** automation for low-level system workflows.
+- **.NET Runspaces** for true multi-threaded producer/consumer design.
+- **WMI/CIM event tracing** (`Win32_ProcessStartTrace`, `Win32_ProcessStopTrace`) for low-latency process lifecycle capture.
+- **Bulk CIM performance sampling** (`Win32_PerfFormattedData_PerfProc_Process`) to reduce per-process query overhead.
+- **Thread-safe shared state** with synchronized hashtables and explicit `Monitor` locking.
+- **Dynamic C# compilation via `Add-Type`** for high-frequency loops with lower PowerShell overhead.
+- **`System.Diagnostics.Process` API** usage for CPU time deltas, kernel/user split, working set behavior, priority classes, and affinity control.
+- **Windows scheduling controls**: process **PriorityClass** (including Idle/BelowNormal) and **ProcessorAffinity** masks.
+- **NVML interop (P/Invoke to `nvml.dll`)** for direct NVIDIA telemetry (clock, temp, utilization, VRAM).
+- **`nvidia-smi` CLI integration** for quick GPU clock/temperature polling.
+- **CSV reporting pipeline** for offline filtering/sorting and post-session analysis.
+- **Operational UX features**: optional text-to-speech alerts, console health checks, and self-elevation patterns for admin-required visibility.
 
-…start ProcessMon, reproduce the issue, then check the CSV for short-lived processes or surprise I/O spikes.
+---
+
+## Scripts
+
+### `ProcessMon.ps1`
+
+### Purpose
+Real-time process start/stop monitor for Windows 10/11 focused on finding background activity that correlates with in-game stutter or input hitching.
+
+### What it does
+- Subscribes to WMI process lifecycle events (`start` and `stop`) with low latency.
+- Captures process metadata close to launch time: owner/SID, command line, parent process, session, executable path.
+- Samples CPU, memory, and I/O metrics in a **background runspace** and tracks peaks/totals.
+- Exports a per-process lifetime report to CSV.
+- Optional TTS announces process activity while you stay in-game.
+
+### Key parameters
+- `-SampleIntervalMs` (default `1000`) for metric sampling frequency.
+- `-OutputCsv` to choose report path.
+- `-Quiet` to reduce console output.
+- `-NoTts` to disable voice alerts.
+- `-ExcludeNames` to suppress known noisy processes.
+
+### Best use
+Run before reproducing a stutter scenario, then sort CSV by CPU/I/O peaks and short-lived events around the time you felt the hitch.
+
+---
+
+### `Stutter-Hunter.ps1`
+
+### Purpose
+High-frequency interference detector designed for hybrid-CPU gaming scenarios where short spikes (not average load) are the real problem.
+
+### What it does
+- Uses a tight loop (default `100ms`) to compare per-process CPU time deltas.
+- Flags processes that exceed configurable CPU spike thresholds.
+- Classifies risk patterns such as:
+  - high-priority background spikes,
+  - kernel-heavy spikes (driver/AV style behavior),
+  - abrupt memory working-set churn used as a lightweight paging pressure proxy.
+- Emits timestamped alerts and optional beep cues for critical events.
+
+### Key parameters
+- `-GameProcessName` to exclude the active game executable.
+- `-SampleIntervalMs` for detection granularity.
+- `-CpuSpikeThreshold` for alert sensitivity.
+- `-HardFaultThreshold` (declared for tuning workflows; logic currently focuses on fast proxies).
+
+### Best use
+Run during gameplay to catch interference in real time, then apply policy changes (priority/affinity) only where repeated offenders are confirmed.
+
+---
+
+### `read-gpu-clocks.ps1`
+
+### Purpose
+Minimal overhead polling script for NVIDIA GPU clocks and temperature using `nvidia-smi`.
+
+### What it does
+- Sets its own process priority to **Idle**.
+- Calls `nvidia-smi` in a loop every 5 seconds.
+- Prints SM clock, memory clock, and GPU temperature.
+
+### Best use
+Quick sanity check while testing game settings, driver changes, or background mitigation scripts.
+
+---
+
+### `read-gpu-clocks-directly.ps1`
+
+### Purpose
+Direct NVML-based GPU telemetry script with controllable process scheduling (priority + affinity).
+
+### What it does
+- Loads `nvml.dll` and binds native NVML methods through C# interop (`Add-Type`).
+- Reads:
+  - graphics clock (GHz),
+  - GPU temperature,
+  - GPU utilization,
+  - VRAM used percentage.
+- Sets the script process to **Idle** and applies a configurable affinity mask.
+- Streams timestamped telemetry once per second.
+
+### Best use
+When you want direct API-level GPU telemetry and deterministic script scheduling behavior during performance experiments.
+
+---
+
+## Practical workflow
+
+1. **Observe process behavior** with `ProcessMon.ps1` and identify repeat offenders.
+2. **Validate interference patterns** live with `Stutter-Hunter.ps1`.
+3. **Apply conservative scheduling policy** (often priority-first, e.g., Idle) before stronger affinity constraints.
+4. **Correlate with GPU state** using one of the GPU scripts to rule in/out GPU-side bottlenecks.
+5. Iterate only on changes that consistently improve frame-time stability.
 
 ---
 
 ## Requirements
 
 - Windows 10/11
-- PowerShell 5.1 (works great in Windows PowerShell)
-- **Administrator** is recommended for full visibility (the script will warn if you’re not)
+- PowerShell 5.1
+- Administrator privileges recommended for full system/process visibility
+- NVIDIA tooling for GPU scripts:
+  - `nvidia-smi.exe` on PATH (or default NVIDIA install location)
+  - `nvml.dll` available for the direct NVML script
 
-No external dependencies.
-
----
-
-## Quick start
-
-Run from an elevated PowerShell prompt:
-
-```powershell
-# Basic run (1s sampling, CSV saved next to the script)
-.\ProcessMon.ps1
-````
-
-Higher resolution sampling (more overhead):
-
-```powershell
-.\ProcessMon.ps1 -SampleIntervalMs 250
-```
-
-Save the report to a specific path:
-
-```powershell
-.\ProcessMon.ps1 -OutputCsv "C:\Temp\ProcessMon.csv"
-```
-
-Run quietly (no console spam, just the CSV at the end):
-
-```powershell
-.\ProcessMon.ps1 -Quiet
-```
-
-Exclude noisy process names (defaults already exclude common ones like `svchost.exe`, `msedge.exe`, etc.):
-
-```powershell
-.\ProcessMon.ps1 -ExcludeNames @("svchost.exe","msedge.exe","Discord.exe","Steam.exe")
-```
-
-### Stopping the capture
-
-Use **Ctrl+C** (or close the window). On shutdown, the script writes the report and prints the output path.
-
----
-
-## What’s in the CSV
-
-Each row represents a process lifetime (start → stop), with peaks and totals captured during that window.
-
-Common columns you’ll care about:
-
-* `Name`, `ProcId`
-* `ParentName`, `ParentProcId`
-* `StartTime`, `StopTime`, `DurationSec`
-* `Owner`, `OwnerSid`, `IsSystemAccount`, `IsServiceAccount`
-* `CommandLine` (trimmed in console output; full in CSV)
-* `CpuPeakPct`
-* `WorkingSetPeakMB`, `PrivateBytesPeakMB` (decimal MB, not MiB)
-* `ReadMbpsPeak`, `WriteMbpsPeak`
-* `TotalReadMB`, `TotalWriteMB`
-* `Visibility` / `AccessRestricted` (helps explain why some metadata is missing)
-
-Tip: Sort by `CpuPeakPct`, `ReadMbpsPeak`, `WriteMbpsPeak`, or `DurationSec` to surface the usual troublemakers fast.
-
----
-
-## How it works (high level)
-
-ProcessMon is intentionally split into two lanes:
-
-1. **Main thread (event listener + UI/logging)**
-
-* Subscribes to WMI event traces for process start/stop
-* Captures “who/what launched” metadata immediately (owner, command line, parent)
-* Tracks active PIDs in shared state
-
-2. **Background runspace (metrics sampler)**
-
-* Samples performance counters via a **single bulk WMI/CIM query** and maps metrics back to tracked PIDs
-* Updates peaks/totals in shared state without blocking event detection
-
-There’s also a simple health check: if the background runspace dies, the main loop reports it and exits cleanly.
-
----
-
-## Notes & gotchas
-
-* **Sampling overhead:** Lower `-SampleIntervalMs` gives better timing resolution but increases WMI/CIM load.
-* **Admin visibility:** Without elevation, some system/service metadata may show up as restricted.
-* **Anti-cheat / protected processes:** Some environments are noisy or restrictive; the sampler is designed to fail softly rather than crash.
-
----
-
-## Text-to-Speech
-
-The script includes Text-to-Speech (useful if you want audible “something started/stopped” cues while you’re in-game). It’s enabled by default. To disable TTS alerts, run:
-
-```powershell
-.\ProcessMon.ps1 -NoTts
-```
-
----
-
-## keywords
-
-Windows 11 process monitor, PowerShell process monitoring, real-time process start trace, FPS stutter fix, microstutter diagnosis, sim racing performance tuning, Forza Motorsport stutter, CPU spike detector, background process detection, disk I/O latency, WMI event trace, CIM performance counters.
-
-
-Real-time Windows 10/11 process start/stop monitor for diagnosing gaming stutter (PowerShell + WMI/CIM + .NET runspaces; CPU/memory/I/O → CSV).
-```
