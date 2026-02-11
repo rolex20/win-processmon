@@ -10,6 +10,7 @@ When a game stutters, the obvious suspects (GPU driver, shaders, “bad optimiza
 
 **It does:**
 - Detect **process starts/stops** with very low latency (WMI event traces)
+- Optionally track **all processes**, including those already running at startup (`-TrackAll`)
 - Capture per-process peaks for:
   - CPU (%)
   - Working Set / Private Bytes
@@ -22,6 +23,7 @@ When a game stutters, the obvious suspects (GPU driver, shaders, “bad optimiza
 - Replace Windows Performance Recorder (WPR), ETW traces, or deep profilers  
   This is meant to answer: *“What fired up right when my frame-time spiked?”*
 - Guarantee visibility into every system/service process unless you run as Admin
+- By default, it does **not** report processes already running before capture begins (use `-TrackAll` for that)
 
 ---
 
@@ -79,6 +81,18 @@ Exclude noisy process names (defaults already exclude common ones like `svchost.
 .\ProcessMon.ps1 -ExcludeNames @("svchost.exe","msedge.exe","Discord.exe","Steam.exe")
 ```
 
+Track all processes (report pre-existing ones only if they cross the CPU threshold):
+
+```powershell
+.\ProcessMon.ps1 -TrackAll
+```
+
+Customize the CPU threshold for pre-existing/resynced processes:
+
+```powershell
+.\ProcessMon.ps1 -TrackAll -MinCpuPeakPct 8
+```
+
 ### Stopping the capture
 
 Use **Ctrl+C** (or close the window). On shutdown, the script writes the report and prints the output path.
@@ -94,6 +108,7 @@ Common columns you’ll care about:
 * `Name`, `ProcId`
 * `ParentName`, `ParentProcId`
 * `StartTime`, `StopTime`, `DurationSec`
+* `StartCaptured`, `StartSource`, `ObservedStartTime`, `StopReason`
 * `Owner`, `OwnerSid`, `IsSystemAccount`, `IsServiceAccount`
 * `CommandLine` (trimmed in console output; full in CSV)
 * `CpuPeakPct`
@@ -101,8 +116,11 @@ Common columns you’ll care about:
 * `ReadMbpsPeak`, `WriteMbpsPeak`
 * `TotalReadMB`, `TotalWriteMB`
 * `Visibility` / `AccessRestricted` (helps explain why some metadata is missing)
+* `ProcessCreationTime` (when metadata is captured)
 
 Tip: Sort by `CpuPeakPct`, `ReadMbpsPeak`, `WriteMbpsPeak`, or `DurationSec` to surface the usual troublemakers fast.
+
+Per-process JSON is generated for every emitted row (one JSON file per process).
 
 ---
 

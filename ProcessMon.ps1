@@ -51,6 +51,13 @@
 .PARAMETER NoTts
   Disable Text-to-Speech alerts for process start/stop events.
 
+.PARAMETER TrackAll
+  Track all processes, including those running before the script starts (opt-in).
+
+.PARAMETER MinCpuPeakPct
+  Minimum CPU peak percentage required to emit pre-existing/resynced processes
+  when TrackAll is enabled (default: 5).
+
 .NOTES
   - Requires Administrator privileges for full visibility into System/Service processes.
   - Designed for PowerShell 5.1 on Windows 10/11.
@@ -62,11 +69,25 @@ param(
   [string]$OutputCsv = "",
   [switch]$Quiet = $false,
   [switch]$NoTts = $false,
+  [switch]$TrackAll = $false,
+  [double]$MinCpuPeakPct,
   [string[]]$ExcludeNames = @( "sample1.exe", "msedge.exe", "conhost.exe","dllhost.exe","sihost.exe","RuntimeBroker.exe", "svchost.exe" )
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+$scriptStartTime = Get-Date
+$minCpuPeakProvided = $PSBoundParameters.ContainsKey("MinCpuPeakPct")
+if ($minCpuPeakProvided -and -not $TrackAll) {
+    throw "MinCpuPeakPct is only valid when -TrackAll is specified."
+}
+if ($TrackAll -and -not $minCpuPeakProvided) {
+    $MinCpuPeakPct = 5
+}
+if ($TrackAll -and ($MinCpuPeakPct -lt 0 -or $MinCpuPeakPct -gt 100)) {
+    throw "MinCpuPeakPct must be between 0 and 100."
+}
 
 # --- 1. SHARED STATE ---
 $global:SyncHash = [hashtable]::Synchronized(@{
@@ -177,12 +198,13 @@ function Write-Info([string]$Msg) {
 # --- 3. MAIN THREAD HELPERS ---
 
 function Get-OwnerInfoAndMeta([int]$pidVal) {
-    $out = @{ Owner=""; OwnerSid=""; CommandLine=""; Path=""; ParentName=""; SessionId=-1; AccessDenied=$false }
+    $out = @{ Owner=""; OwnerSid=""; CommandLine=""; Path=""; ParentName=""; SessionId=-1; AccessDenied=$false; CreationDate=$null }
     try {
         $p = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId=$pidVal" -ErrorAction Stop
         $out.Path        = $p.ExecutablePath
         $out.CommandLine = $p.CommandLine
         $out.SessionId   = $p.SessionId
+        $out.CreationDate = $p.CreationDate
         
         try {
             $pp = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId=$($p.ParentProcessId)" -ErrorAction Stop
@@ -230,7 +252,13 @@ function New-ProcStateObject($procId, $name, $parentPid, $timeGenerated) {
         CommandLine       = $meta.CommandLine
         Path              = $meta.Path
         SessionId         = $meta.SessionId
+        ProcessCreationTime = $meta.CreationDate
         AccessRestricted  = $meta.AccessDenied
+
+        StartCaptured     = $true
+        StartSource       = "WmiStartEvent"
+        ObservedStartTime = (Get-Date)
+        MetaCaptured      = $true
         
         # Metrics
         SampleCount       = 0
@@ -249,6 +277,81 @@ function New-ProcStateObject($procId, $name, $parentPid, $timeGenerated) {
     }
 }
 
+function New-ProcStateLite($procId, $name, $observedAt, $startSource) {
+    return [pscustomobject]@{
+        ProcId            = $procId
+        Name              = $name
+        ParentProcId      = -1
+        ParentName        = ""
+        StartTime         = $observedAt
+        TimeGenerated     = $null
+        StartLagSec       = 0
+        StopTime          = $null
+        
+        Owner             = ""
+        OwnerSid          = ""
+        CommandLine       = ""
+        Path              = ""
+        SessionId         = -1
+        ProcessCreationTime = $null
+        AccessRestricted  = $false
+
+        StartCaptured     = $false
+        StartSource       = $startSource
+        ObservedStartTime = $observedAt
+        MetaCaptured      = $false
+        
+        # Metrics
+        SampleCount       = 0
+        CpuPeak           = 0.0
+        CpuSum            = 0.0
+        WsPeak            = 0.0
+        WsSum             = 0.0
+        PvPeak            = 0.0 
+        ReadBpsPeak       = 0.0
+        ReadBpsSum        = 0.0
+        WriteBpsPeak      = 0.0
+        WriteBpsSum       = 0.0
+        TotalReadEst      = 0.0
+        TotalWriteEst     = 0.0
+        LastSampleTime    = (Get-Date)
+    }
+}
+
+function Ensure-ProcMeta($st) {
+    if ($st.MetaCaptured) { return }
+    try {
+        $p = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId=$($st.ProcId)" -ErrorAction Stop
+        $st.Path        = $p.ExecutablePath
+        $st.CommandLine = $p.CommandLine
+        $st.SessionId   = $p.SessionId
+        $st.ProcessCreationTime = $p.CreationDate
+        if ($st.ParentProcId -le 0) { $st.ParentProcId = $p.ParentProcessId }
+        if (-not $st.ParentName -and $p.ParentProcessId) {
+            try {
+                $pp = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId=$($p.ParentProcessId)" -ErrorAction Stop
+                $st.ParentName = $pp.Name
+            } catch {}
+        }
+
+        try {
+            $sidRes = Invoke-CimMethod -InputObject $p -MethodName GetOwnerSid -ErrorAction Stop
+            if ($sidRes.Sid) { $st.OwnerSid = $sidRes.Sid }
+        } catch {}
+
+        try {
+            $own = Invoke-CimMethod -InputObject $p -MethodName GetOwner -ErrorAction Stop
+            if ($own.User) {
+                $dom = if ($own.Domain) { $own.Domain + "\" } else { "" }
+                $st.Owner = "$dom$($own.User)"
+            }
+        } catch {}
+    } catch {
+        $st.AccessRestricted = $true
+    }
+    $st.MetaCaptured = $true
+}
+
 function Get-ScriptArguments {
     param([string]$FullString, [string]$FileName)
     if ([string]::IsNullOrWhiteSpace($FullString)) { return "" }
@@ -264,9 +367,21 @@ function Safe-Name([string]$s) {
   
 }
 
-function Stop-And-Report([int]$procIdVal) {
+function Stop-And-Report([int]$procIdVal, [string]$StopReason = "Stopped", [switch]$SuppressTts = $false) {
     $st = $global:SyncHash.ProcState[$procIdVal]
     if (-not $st) { return }
+
+    $emit = $true
+    if ($TrackAll -and -not $st.StartCaptured) {
+        $emit = ($st.CpuPeak -ge $MinCpuPeakPct)
+    }
+
+    if (-not $emit) {
+        $global:SyncHash.ProcState.Remove($procIdVal)
+        return
+    }
+
+    Ensure-ProcMeta -st $st
     $global:SyncHash.ProcState.Remove($procIdVal)
 
     $st.StopTime = Get-Date
@@ -288,12 +403,17 @@ function Stop-And-Report([int]$procIdVal) {
         TimeGenerated      = $st.TimeGenerated
         StartLagSec        = $st.StartLagSec
         DurationSec        = [math]::Round($dur, 3)
+        ObservedStartTime  = $st.ObservedStartTime
+        StartCaptured      = $st.StartCaptured
+        StartSource        = $st.StartSource
+        StopReason         = $StopReason
         Owner              = $st.Owner
         OwnerSid           = $st.OwnerSid
         CommandLine        = $st.CommandLine
         IsSystemAccount    = $isSystem
         IsServiceAccount   = $isService
         AccessRestricted   = $st.AccessRestricted
+        ProcessCreationTime = $st.ProcessCreationTime
         SampleCount        = $st.SampleCount
         
         # Metrics
@@ -326,11 +446,16 @@ function Stop-And-Report([int]$procIdVal) {
         if ($row.CommandLine.Length -gt 100) { $row.CommandLine.Substring(0,97)+"..." } else { $row.CommandLine }
     } else { $row.Name }
 
-	$trackedCount = $global:SyncHash.ProcState.Count
-	$someActivity = [bool]($row.DurationSec -gt 1 -AND $row.CpuPeakPct -gt 1)
-	$mark = if ($someActivity) { "*" } else { "" }
+    $trackedCount = $global:SyncHash.ProcState.Count
+    if ($TrackAll) {
+        $someActivity = [bool]($row.CpuPeakPct -ge $MinCpuPeakPct)
+    } else {
+        $someActivity = [bool]($row.DurationSec -gt 1 -AND $row.CpuPeakPct -gt 1)
+    }
+    $mark = if ($someActivity) { "*" } else { "" }
+    $sourceTag = if ($TrackAll -and -not $row.StartCaptured) { " [OLD:$($row.StartSource)]" } else { "" }
 
-    Write-Info ("[STOP$mark] {0,-15} (ID:{1}) ran {2}s. StartLag: {3}s TrackingCount={4} " -f $row.Name, $row.ProcId, $row.DurationSec, $row.StartLagSec, $trackedCount)
+    Write-Info ("[STOP$mark]{5} {0,-15} (ID:{1}) ran {2}s. StartLag: {3}s TrackingCount={4} " -f $row.Name, $row.ProcId, $row.DurationSec, $row.StartLagSec, $trackedCount, $sourceTag)
     
     if ($someActivity) {
         $f = $row | Select-Object ProcId, Name, CpuPeakPct, DurationSec, StartLagSec, ParentProcId, ParentName, StartTime, StopTime, TimeGenerated, Owner, OwnerSid, CommandLine, IsSystemAccount, IsServiceAccount, AccessRestricted, Visibility, MetricMode, TotalsMode, SampleCount, WorkingSetPeakMB, PrivateBytesPeakMB, ReadMbpsPeak, WriteMbpsPeak, TotalReadMB, TotalWriteMB | Format-List | Out-String
@@ -338,7 +463,7 @@ function Stop-And-Report([int]$procIdVal) {
         Write-Info ""
     } 
 
-    if ($row.DurationSec -gt 1) { 
+    if (-not $SuppressTts -and $row.DurationSec -gt 1) { 
         Speak-ProcessName "Stopped $($row.Name)" 
     }
 }
@@ -430,6 +555,9 @@ if ([string]::IsNullOrWhiteSpace($OutputCsv)) {
 Write-Info "Starting Process Monitor..."
 Write-Info "Main Thread: Event Listening Only"
 Write-Info "Bg Thread:   Metrics Sampling (Interval: ${SampleIntervalMs}ms)"
+if ($TrackAll) {
+    Write-Info "TrackAll mode enabled (MinCpuPeakPct=$MinCpuPeakPct)."
+}
 
 $rs = [PowerShell]::Create()
 $rs.Runspace.SessionStateProxy.SetVariable("SharedHash", $global:SyncHash)
@@ -442,6 +570,26 @@ $asyncHandle = $rs.BeginInvoke()
 # --- 6. MAIN LOOP ---
 Register-WmiEvent -Namespace "root\cimv2" -Query "SELECT * FROM Win32_ProcessStartTrace" -SourceIdentifier "ProcStart" | Out-Null
 Register-WmiEvent -Namespace "root\cimv2" -Query "SELECT * FROM Win32_ProcessStopTrace" -SourceIdentifier "ProcStop" | Out-Null
+
+if ($TrackAll) {
+    $seeded = 0
+    $excluded = 0
+    $snapshotTime = $scriptStartTime
+    $existing = Get-Process -ErrorAction SilentlyContinue
+    foreach ($proc in $existing) {
+        $name = "$($proc.Name).exe"
+        if ($ExcludeNames -contains $name) { $excluded++; continue }
+        $pidVal = [int]$proc.Id
+        if (-not $global:SyncHash.ProcState.ContainsKey($pidVal)) {
+            $global:SyncHash.ProcState[$pidVal] = New-ProcStateLite -procId $pidVal -name $name -observedAt $snapshotTime -startSource "Bootstrap"
+            $seeded++
+        }
+    }
+    Write-Info "TrackAll enabled: seeded $seeded existing processes (excluded $excluded). Will only report pre-existing processes if CpuPeakPct >= $MinCpuPeakPct."
+}
+
+$resyncInterval = [TimeSpan]::FromSeconds(10)
+$nextResync = (Get-Date).Add($resyncInterval)
 
 try {
     while ($true) {
@@ -488,6 +636,20 @@ try {
             }
             Remove-Event -EventIdentifier $event.EventIdentifier
         }
+
+        if ($TrackAll -and (Get-Date) -ge $nextResync) {
+            $resyncTime = Get-Date
+            $nextResync = $resyncTime.Add($resyncInterval)
+            $current = Get-Process -ErrorAction SilentlyContinue
+            foreach ($proc in $current) {
+                $name = "$($proc.Name).exe"
+                if ($ExcludeNames -contains $name) { continue }
+                $pidVal = [int]$proc.Id
+                if (-not $global:SyncHash.ProcState.ContainsKey($pidVal)) {
+                    $global:SyncHash.ProcState[$pidVal] = New-ProcStateLite -procId $pidVal -name $name -observedAt $resyncTime -startSource "Resync"
+                }
+            }
+        }
     }
 }
 finally {
@@ -498,6 +660,10 @@ finally {
     try { $rs.EndInvoke($asyncHandle) } catch {}
     $rs.Dispose()
     try { $global:TtsSynth.Dispose() } catch {}
+    $remaining = @($global:SyncHash.ProcState.Keys)
+    foreach ($pidVal in $remaining) {
+        Stop-And-Report -procIdVal $pidVal -StopReason "ScriptExit" -SuppressTts
+    }
     if ($global:SyncHash.Reports.Count -gt 0) {
         $global:SyncHash.Reports | Sort-Object StartTime | Export-Csv -Path $OutputCsv -NoTypeInformation
         Write-Host "Report saved: $OutputCsv"
