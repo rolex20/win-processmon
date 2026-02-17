@@ -1,3 +1,14 @@
+#Cómo ejecutarlo
+#
+#En PowerShell 5.1:
+#
+#powershell.exe -ExecutionPolicy Bypass -File .\HybridQosDemo.ps1
+#
+#
+#Opcionalmente:
+#
+#powershell.exe -ExecutionPolicy Bypass -File .\HybridQosDemo.ps1 -Iterations 40 -SleepMs 100
+#
 param(
   [int]$Iterations = 20,
   [int]$SleepMs    = 250
