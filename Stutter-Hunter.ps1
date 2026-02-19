@@ -20,7 +20,8 @@ param(
     [string]$GameProcessName = "ForzaHorizon5", # Change to your game exe name
     [int]$SampleIntervalMs = 100,      # 100ms resolution to catch micro-stutters
     [double]$CpuSpikeThreshold = 5.0,  # % of Total CPU to trigger an alert
-    [int]$HardFaultThreshold = 10      # Number of Page Faults to trigger an alert
+    [int]$HardFaultThreshold = 10,     # Number of Page Faults to trigger an alert
+    [int[]]$ProcessId = @()
 )
 
 # --- 1. C# ACCELERATION ---
@@ -90,6 +91,8 @@ while ($true) {
     $currentProcesses = [System.Diagnostics.Process]::GetProcesses()
 
     foreach ($proc in $currentProcesses) {
+        if ($ProcessId.Count -gt 0 -and ($proc.Id -notin $ProcessId)) { continue }
+
         # Skip the game itself and Idle/System
         if ($proc.Id -eq 0 -or $proc.Id -eq 4) { continue }
         if ($gameProc -and $proc.Id -eq $gameProc.Id) { continue }
