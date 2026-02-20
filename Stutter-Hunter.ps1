@@ -103,7 +103,7 @@ TUNING
 
 
 param(
-    [string]$GameProcessName = "ForzaHorizon5",
+    [string]$GameProcessName = "ForzaHorizon5", # without the .exe
     [int[]]$ProcessId = @(),
 	[switch]$IncludeSelf,
     [int]$SampleIntervalMs = 100,
@@ -113,19 +113,7 @@ param(
 
 $ErrorActionPreference = "SilentlyContinue"
 
-# --- Effective parameters (defaults + command-line overrides) ---
-$pidFilterText = if ($ProcessId -and $ProcessId.Count -gt 0) { $ProcessId -join ',' } else { '<none>' }
 
-Write-Host "Effective parameters:" -ForegroundColor Cyan
-Write-Host ("  GameProcessName    : {0}" -f $GameProcessName)
-Write-Host ("  ProcessId filter   : {0}" -f $pidFilterText)
-Write-Host ("  SampleIntervalMs   : {0}" -f $SampleIntervalMs)
-Write-Host ("  CpuSpikeThreshold  : {0}" -f $CpuSpikeThreshold)
-Write-Host ("  HardFaultThreshold : {0} (WSΔ MB annotate-only)" -f $HardFaultThreshold)
-Write-Host ("  IncludeSelf        : {0} (self PID {1})" -f [bool]$IncludeSelf, $PID)
-Write-Host ("  LogicalCPUs seen   : {0}" -f [Environment]::ProcessorCount)
-Write-Host ""
-# --------------------------------------------------------------
 
 if (-not ("StutterHunterRunner" -as [type])) {
 
@@ -377,10 +365,11 @@ public class StutterHunterRunner
 
                             // Per-thread deltas (only meaningful if we had a prior thread snapshot)
                             details += BuildThreadDetails(oldThreads, newThreads);
-
+							
+							string shortName = name.Length > 10 ? name.Substring(0, 10) : name;
                             string msg = string.Format(
-                                "[{0}] {1,-20} | CPU: {2,5:N1}% | Prio: {3,-10} | Type: {4}{5}",
-                                ts, name, cpuPercent, prioLabel, danger, details
+                                "[{0}] {1,-10} | CPU: {2,5:N1}% | Prio: {3,-10} | Type: {4}{5}",
+                                ts, shortName, cpuPercent, prioLabel, danger, details
                             );
 
                             WriteColoredLine(msg, color);
@@ -612,3 +601,4 @@ public class StutterHunterRunner
     [bool]$IncludeSelf
 )
 
+Start-Sleep 3600
