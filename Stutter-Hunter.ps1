@@ -421,6 +421,14 @@ public class StutterHunterRunner
 
                 SafeDispose(p);
             }
+			
+            // If a PID filter is active, processes were successfully queried, but no target PIDs are alive
+            if (filter != null && procs.Length > 0 && currentIds.Count == 0)
+            {
+                WriteColoredLine("All monitored PIDs are dead. Auto-stopping...", ConsoleColor.DarkGray);
+                _stopRequested = true;
+                continue; 
+            }			
 
             // Cleanup snapshots for exited processes
             if (prev.Count > 0)
@@ -601,4 +609,5 @@ public class StutterHunterRunner
     [bool]$IncludeSelf
 )
 
+Write-Host "Press Ctrl+C to exit" 
 Start-Sleep 3600
