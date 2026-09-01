@@ -1,4 +1,6 @@
-You are an expert PowerShell and .NET developer. Your task is to refactor and optimize the embedded C# (.NET) compilation mechanism in the target PowerShell 5.1 script.
+# In memory only compilation
+
+AI Prompt #1: You are an expert PowerShell and .NET developer. Your task is to refactor and optimize the embedded C# (.NET) compilation mechanism in the target PowerShell 5.1 script.
 
 ### Background & Objective
 By default, naive invocations of `Add-Type -TypeDefinition $Source -Language CSharp` in Windows PowerShell 5.1 compile in Debug/unoptimized mode, leave temporary files on disk, and fail if the script is executed multiple times in the same session. Furthermore, using `Add-Type -CompilerParameters` in PowerShell 5.1 bypasses PowerShell's default assembly reference list, which can cause missing assembly errors for `System.dll`, `System.Core.dll`, etc.
