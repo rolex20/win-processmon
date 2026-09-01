@@ -115,7 +115,20 @@ $ErrorActionPreference = "SilentlyContinue"
 
 
 
-if (-not ("StutterHunterRunner" -as [type])) {
+if (-not ([System.Management.Automation.PSTypeName]'StutterHunterRunner').Type) {
+    $Params = New-Object System.CodeDom.Compiler.CompilerParameters
+    $Params.CompilerOptions = "/optimize"
+    $Params.GenerateInMemory = $true
+    $Params.IncludeDebugInformation = $false
+
+    $runtimeDir = [Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()
+    $assembliesToLoad = @("System.dll", "System.Core.dll")
+    foreach ($dll in $assembliesToLoad) {
+        $dllPath = Join-Path $runtimeDir $dll
+        if (Test-Path $dllPath) {
+            [void]$Params.ReferencedAssemblies.Add($dllPath)
+        }
+    }
 
 $code = @'
 using System;
@@ -596,7 +609,59 @@ public class StutterHunterRunner
 }
 '@
 
-    Add-Type -TypeDefinition $code -Language CSharp
+    Add-Type -TypeDefinition $code -CompilerParameters $Params
+} else {
+    Write-Warning "Using existing C# definition. If you modified the C# code, please restart PowerShell."
+}
+
+function Set-ThisProcessPriorityAndAffinity {
+    param(
+        [switch]$Idle,
+        [switch]$BelowNormal,
+        [string]$AffinityMask
+    )
+
+    $p = [System.Diagnostics.Process]::GetCurrentProcess()
+
+    # Priority
+    if ($Idle -and $BelowNormal) {
+        Write-Warning "Both -Idle and -BelowNormal were specified; using -Idle."
+        $BelowNormal = $false
+    }
+
+    try {
+        if ($Idle)       { $p.PriorityClass = [System.Diagnostics.ProcessPriorityClass]::Idle }
+        elseif ($BelowNormal) { $p.PriorityClass = [System.Diagnostics.ProcessPriorityClass]::BelowNormal }
+    } catch {
+        Write-Warning "Failed to set process priority: $($_.Exception.Message)"
+    }
+
+    # Affinity mask (accept decimal like main.c; also accepts 0x.. if provided)
+    if ($AffinityMask) {
+        try {
+            $maskStr = $AffinityMask.Trim()
+            $mask =
+                if ($maskStr -match '^0x[0-9a-fA-F]+$') { [UInt64]::Parse($maskStr.Substring(2), [System.Globalization.NumberStyles]::HexNumber) }
+                else { [UInt64]$maskStr }
+
+            if ($mask -eq 0) { throw "AffinityMask cannot be 0." }
+
+            # ProcessorAffinity is IntPtr; keep it in-range
+            if ([IntPtr]::Size -eq 4 -and $mask -gt [UInt32]::MaxValue) {
+                throw "AffinityMask too large for 32-bit PowerShell."
+            }
+
+            $p.ProcessorAffinity = [IntPtr]([Int64]$mask)
+        } catch {
+            Write-Warning "Failed to set affinity mask '$AffinityMask': $($_.Exception.Message)"
+        }
+    }
+
+    Write-Verbose ("Proc Priority={0}, Affinity=0x{1:X}" -f $p.PriorityClass, $p.ProcessorAffinity.ToInt64())
+}
+
+if ($env:COMPUTERNAME -eq "GALVATRON") {
+    Set-ThisProcessPriorityAndAffinity -Idle -AffinityMask 0x0FFF0000
 }
 
 [StutterHunterRunner]::Run(
